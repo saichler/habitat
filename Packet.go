@@ -1,0 +1,49 @@
+package habitat
+
+import . "github.com/saichler/utils/golang"
+
+type Packet struct {
+	Source  *HID
+	Dest    *HID
+	Origin  *HID
+	FID     uint32
+	PID     uint32
+	M       bool
+	P       uint16
+	Data    []byte
+}
+
+func (p *Packet) Marshal() []byte {
+	ba:=NewByteArray()
+	ba.Add(p.Source.Marshal())
+	ba.Add(p.Dest.Marshal())
+	ba.Add(p.Origin.Marshal())
+	ba.AddUInt32(p.FID)
+	ba.AddUInt32(p.PID)
+	ba.AddBool(p.M)
+	ba.AddUInt16(p.P)
+	ba.AddByteArray(p.Data)
+	return ba.Data()
+}
+
+func (p *Packet) Unmarshal(data []byte) {
+	p.Source = &HID{}
+	p.Dest = &HID{}
+	p.Origin = &HID{}
+	ba:=NewByteArrayWithData(data,0)
+	p.Source.Unmarshal(ba)
+	p.Dest.Unmarshal(ba)
+	p.Origin.Unmarshal(ba)
+	/*
+	if p.Dest.UuidM==0 {
+		p.Dest = nil
+	}
+	if p.Origin.UuidM==0 {
+		p.Origin = nil
+	}*/
+	p.FID=ba.GetUInt32()
+	p.PID=ba.GetUInt32()
+	p.M=ba.GetBool()
+	p.P=ba.GetUInt16()
+	p.Data=ba.GetByteArray()
+}

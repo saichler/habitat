@@ -20,7 +20,7 @@ const (
 )
 
 func getData(frame *Frame) *Protocol {
-	ba := NewByteArrayWithData(frame.Data())
+	ba := NewByteArrayWithData(frame.Data(),0)
 	protocol := Protocol{}
 	protocol.op = ba.GetUInt32()
 	protocol.data = ba.GetString()
@@ -46,7 +46,7 @@ func (sfh *StringFrameHandler)SendString(str string, habitat *Habitat, dest *HID
 	ba := ByteArray{}
 	ba.AddUInt32(REQUEST)
 	ba.AddString(str)
-	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.GetData())
+	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.Data())
 
 	habitat.Send(frame)
 }
@@ -60,7 +60,7 @@ func (sfh *StringFrameHandler)ReplyString(str string, habitat *Habitat, dest *HI
 	ba := ByteArray{}
 	ba.AddUInt32(REPLY)
 	ba.AddString(str)
-	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.GetData())
+	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.Data())
 
 	habitat.Send(frame)
 }

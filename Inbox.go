@@ -6,7 +6,7 @@ import (
 )
 
 type Inbox struct {
-	pending map[HidKey]map[uint32]*MultiPart
+	pending map[HidKey]*SourceMultiPart
 	mtx *sync.Mutex
 	inQueue     *Queue
 }
@@ -16,20 +16,32 @@ type HidKey struct {
 	uuidL int64
 }
 
+type SourceMultiPart struct {
+	m map[uint32]*MultiPart
+	mtx *sync.Mutex
+}
+
 type MultiPart struct {
 	fID 	uint32
 	packets []*Packet
-	data    [][]byte
 	totalExpectedPackets uint32
 	byteLength uint32
+	mtx *sync.Mutex
 }
 
 func NewInbox() *Inbox {
 	inbox:=&Inbox{}
 	inbox.inQueue = NewQueue()
-	inbox.pending = make(map[HidKey]map[uint32]*MultiPart)
+	inbox.pending = make(map[HidKey]*SourceMultiPart)
 	inbox.mtx = &sync.Mutex{}
 	return inbox
+}
+
+func newSourceMultipart() *SourceMultiPart {
+	smp:=&SourceMultiPart{}
+	smp.mtx = &sync.Mutex{}
+	smp.m = make(map[uint32]*MultiPart)
+	return smp
 }
 
 func (inbox *Inbox) Pop() interface{} {
@@ -47,41 +59,66 @@ func getHidKey(hid *HID) HidKey {
 	return hk
 }
 
-func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,map[uint32]*MultiPart) {
-	hk:=getHidKey(packet.Source)
-	inbox.mtx.Lock()
-	defer inbox.mtx.Unlock()
-	sourcePending := inbox.pending[hk]
-	if sourcePending == nil {
-		sourcePending = make(map[uint32]*MultiPart)
-		inbox.pending[hk] = sourcePending
-	}
-	multiPart := sourcePending[packet.FID]
-	if multiPart == nil {
-		multiPart = &MultiPart{}
-		multiPart.packets = make([]*Packet,0)
-		sourcePending[packet.FID] = multiPart
-	}
-	return multiPart,sourcePending
+func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {
+	multiPart := &MultiPart{}
+	multiPart.packets = make([]*Packet,0)
+	multiPart.mtx = &sync.Mutex{}
+	smp.m[fid] = multiPart
+	return multiPart
 }
 
-func (inbox *Inbox) addPacket(packet *Packet, data []byte) ([]byte, bool) {
-	multiPart,sourcePending:=inbox.getMultiPart(packet)
-	multiPart.packets = append(multiPart.packets,packet)
+func (smp *SourceMultiPart) getMultiPart(fid uint32) *MultiPart {
+	smp.mtx.Lock()
+	defer smp.mtx.Unlock()
+	multiPart := smp.m[fid]
+	if multiPart == nil {
+		multiPart = smp.newMultiPart(fid)
+	}
+	return multiPart
+}
 
-	if multiPart.totalExpectedPackets == 0 && packet.PID == 0 {
-		ba := NewByteArrayWithData(data)
-		multiPart.totalExpectedPackets = ba.GetUInt32()
-		multiPart.byteLength = ba.GetUInt32()
+func (smp *SourceMultiPart) delMultiPart(fid uint32) {
+	smp.mtx.Lock()
+	defer smp.mtx.Unlock()
+	delete(smp.m,fid)
+}
+
+func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,*SourceMultiPart) {
+	hk:=getHidKey(packet.Source)
+	inbox.mtx.Lock()
+	sourceMultiParts:=inbox.pending[hk]
+	if sourceMultiParts==nil {
+		sourceMultiParts=newSourceMultipart()
+		inbox.pending[hk] = sourceMultiParts
+	}
+	inbox.mtx.Unlock()
+	multiPart:= sourceMultiParts.getMultiPart(packet.FID)
+	return multiPart,sourceMultiParts
+}
+
+func (inbox *Inbox) addPacket(packet *Packet) ([]byte, bool) {
+	mp,smp:=inbox.getMultiPart(packet)
+	mp.mtx.Lock()
+	mp.packets = append(mp.packets,packet)
+	if mp.totalExpectedPackets == 0 && packet.PID == 0 {
+		ba := NewByteArrayWithData(packet.Data,0)
+		mp.totalExpectedPackets = ba.GetUInt32()
+		mp.byteLength = ba.GetUInt32()
 	}
 
-	if multiPart.totalExpectedPackets>0 && len(multiPart.packets) == int(multiPart.totalExpectedPackets) {
-		frameData := make([]byte,int(multiPart.byteLength))
-		for i:=0;i<int(multiPart.totalExpectedPackets);i++ {
-			if multiPart.packets[i].PID !=0 {
-				start := int((multiPart.packets[i].PID -1)*MTU)
-				end := start+len(multiPart.data[i])
-				copy(frameData[start:end],multiPart.data[i][:])
+	isComplete:=false
+	if mp.totalExpectedPackets>0 && len(mp.packets) == int(mp.totalExpectedPackets) {
+		isComplete = true
+	}
+	mp.mtx.Unlock()
+
+	if isComplete {
+		frameData := make([]byte,int(mp.byteLength))
+		for i:=0;i<int(mp.totalExpectedPackets);i++ {
+			if mp.packets[i].PID !=0 {
+				start := int((mp.packets[i].PID -1)*uint32(MTU))
+				end := start+len(mp.packets[i].Data)
+				copy(frameData[start:end],mp.packets[i].Data[:])
 			}
 		}
 		/* decrypt here
@@ -90,8 +127,8 @@ func (inbox *Inbox) addPacket(packet *Packet, data []byte) ([]byte, bool) {
 		if err == nil {
 			frame.Data = decData
 		}*/
-		sourcePending[packet.FID] = nil
-		return frameData,true
+		smp.delMultiPart(packet.FID)
+		return frameData,isComplete
 	}
-	return nil,false
+	return nil,isComplete
 }

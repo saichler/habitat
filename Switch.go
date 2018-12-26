@@ -44,10 +44,10 @@ func (s *Switch) addInterface(in *Interface) bool {
 	return true
 }
 
-func (s *Switch) handlePacket(p *Packet,header, data []byte,inbox *Inbox) error {
+func (s *Switch) handlePacket(p *Packet,inbox *Inbox) error {
 	if p.Dest.Equal(s.node.hid) {
 		frame := Frame{}
-		frame.Decode(p,data,inbox)
+		frame.Decode(p,inbox)
 		if frame.complete {
 			s.node.frameHandler.HandleFrame(s.node, &frame)
 		}
@@ -58,10 +58,7 @@ func (s *Switch) handlePacket(p *Packet,header, data []byte,inbox *Inbox) error 
 		} else {
 			in = s.external[p.Dest.getHostID()]
 		}
-		e:=in.sendPacket(header,data)
-		if e!=nil {
-			return e
-		}
+		in.sendPacket(p)
 	}
 	return nil
 }

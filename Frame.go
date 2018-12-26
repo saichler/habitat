@@ -1,6 +1,8 @@
 package habitat
 
-import . "github.com/saichler/utils/golang"
+import (
+	. "github.com/saichler/utils/golang"
+)
 
 type Frame struct {
 	fID uint32
@@ -15,12 +17,12 @@ type FrameHandler interface {
 	HandleFrame(*Habitat,*Frame)
 }
 
-func (frame *Frame) Decode (packet *Packet, data []byte, inbox *Inbox){
+func (frame *Frame) Decode (packet *Packet, inbox *Inbox){
 	frame.source = packet.Source
 	frame.dest = packet.Dest
 
 	if packet.M {
-		frame.data,frame.complete=inbox.addPacket(packet,data)
+		frame.data,frame.complete=inbox.addPacket(packet)
 	} else {
 		/* decrypt here
 		key := securityutil.SecurityKey{}
@@ -28,7 +30,7 @@ func (frame *Frame) Decode (packet *Packet, data []byte, inbox *Inbox){
 		if err == nil {
 			frame.Data = decData
 		}*/
-		frame.data = data
+		frame.data = packet.Data
 		frame.complete = true
 	}
 }
@@ -56,15 +58,8 @@ if err == nil {
 		ba.AddUInt32(uint32(totalParts))
 		ba.AddUInt32(uint32(len(frameData)))
 
-		headerSize,header,dataSize,e := ne.CreatePacketData(frame.dest,nil,frame.fID,0,true,0,ba.GetData())
-		if e!=nil {
-			return e
-		}
-
-		e = ne.sendPacketData(headerSize,header,dataSize,ba.GetData())
-		if e!=nil {
-			return e
-		}
+		packet := ne.CreatePacket(frame.dest,nil,frame.fID,0,true,0,ba.Data())
+		ne.sendPacket(packet)
 
 		for i:=0;i<totalParts-1;i++ {
 			loc := i*MTU
@@ -75,26 +70,12 @@ if err == nil {
 				data = frameData[loc:loc+left]
 			}
 
-			headerSize,header,dataSize,e := ne.CreatePacketData(frame.dest,nil,frame.fID,uint32(i+1),true,0,data)
-			if e!=nil {
-				return e
-			}
-
-			e = ne.sendPacketData(headerSize,header,dataSize,ba.GetData())
-			if e!=nil {
-				return e
-			}
+			packet := ne.CreatePacket(frame.dest,nil,frame.fID,uint32(i+1),true,0,data)
+			ne.sendPacket(packet)
 		}
 	} else {
-		headerSize,header,dataSize,e := ne.CreatePacketData(frame.dest,nil,frame.fID,0,false,0,frame.data)
-		if e!=nil {
-			return e
-		}
-
-		e = ne.sendPacketData(headerSize,header,dataSize,frame.data)
-		if e!=nil {
-			return e
-		}
+		packet := ne.CreatePacket(frame.dest,nil,frame.fID,0,false,0,frame.data)
+		ne.sendPacket(packet)
 	}
 	return nil
 }

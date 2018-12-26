@@ -12,8 +12,9 @@ import (
 const (
 	SWITCH_PORT = 52000
 	MAX_PORT    = 54000
-	MTU 		= 512
 )
+
+var MTU 		= 512
 
 type Habitat struct {
 	hid          	*HID
@@ -64,7 +65,7 @@ func NewHabitat(handler FrameHandler) (*Habitat, error) {
 		return nil,e
 	} else {
 		habitat.hid = NewHID(port)
-		log.Debug("Bounded to port " + habitat.hid.FormattedString())
+		log.Debug("Bounded to port " + habitat.hid.String())
 		habitat.isSwitch = port==SWITCH_PORT
 		if !habitat.isSwitch {
 			habitat.uplinkToSwitch()
@@ -73,17 +74,18 @@ func NewHabitat(handler FrameHandler) (*Habitat, error) {
 	habitat.netListener = socket
 	habitat.lock = sync.NewCond(&sync.Mutex{})
 	habitat.running = true
+	habitat.start()
 	return habitat, nil
 }
 
-func (habitat *Habitat) Start() {
+func (habitat *Habitat) start() {
 	go habitat.waitForlinks()
 	time.Sleep(time.Second/2)
 }
 
 func (habitat *Habitat) waitForlinks() {
 	if habitat.running {
-		log.Info("Habitat ", habitat.hid.FormattedString(), " is waiting for links")
+		log.Info("Habitat ", habitat.hid.String(), " is waiting for links")
 	}
 	for ;habitat.running;{
 		connection, error := habitat.netListener.Accept()
