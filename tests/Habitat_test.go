@@ -26,6 +26,7 @@ func TestNodeStart(t *testing.T) {
 
 	h.SendString("Hello World",n1,n2.GetNID())
 	h.SendString("Hello World",n2,n1.GetNID())
-	time.Sleep(time.Second*30)
+
+	time.Sleep(time.Second*10)
 
 }

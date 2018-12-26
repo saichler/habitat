@@ -1,10 +1,19 @@
 package habitat
 
-import . "github.com/saichler/utils/golang"
+import (
+	. "github.com/saichler/utils/golang"
+	"sync"
+)
 
 type Inbox struct {
-	pending map[string]map[uint32]*MultiPart
+	pending map[HidKey]map[uint32]*MultiPart
+	mtx *sync.Mutex
 	inQueue     *Queue
+}
+
+type HidKey struct {
+	uuidM int64
+	uuidL int64
 }
 
 type MultiPart struct {
@@ -18,7 +27,8 @@ type MultiPart struct {
 func NewInbox() *Inbox {
 	inbox:=&Inbox{}
 	inbox.inQueue = NewQueue()
-	inbox.pending = make(map[string]map[uint32]*MultiPart)
+	inbox.pending = make(map[HidKey]map[uint32]*MultiPart)
+	inbox.mtx = &sync.Mutex{}
 	return inbox
 }
 
@@ -30,11 +40,21 @@ func (inbox *Inbox) Push(any interface{}) {
 	inbox.inQueue.Push(any)
 }
 
+func getHidKey(hid *HID) HidKey {
+	hk:=HidKey{}
+	hk.uuidM = hid.UuidM
+	hk.uuidL = hid.UuidL
+	return hk
+}
+
 func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,map[uint32]*MultiPart) {
-	sourcePending := inbox.pending[packet.Source.FormattedString()]
+	hk:=getHidKey(packet.Source)
+	inbox.mtx.Lock()
+	defer inbox.mtx.Unlock()
+	sourcePending := inbox.pending[hk]
 	if sourcePending == nil {
 		sourcePending = make(map[uint32]*MultiPart)
-		inbox.pending[packet.Source.FormattedString()] = sourcePending
+		inbox.pending[hk] = sourcePending
 	}
 	multiPart := sourcePending[packet.FID]
 	if multiPart == nil {
