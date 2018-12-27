@@ -32,7 +32,7 @@ func (in *Interface)CreatePacket(dest,origin *HID, frameId,packetNumber uint32, 
 	packet := &Packet{}
 	packet.Source = in.habitat.hid
 	packet.Dest = dest
-	packet.FID = frameId
+	packet.MID = frameId
 	packet.PID = packetNumber
 	packet.M = multi
 	packet.P = priority
@@ -46,8 +46,8 @@ func (in *Interface) sendPacket(p *Packet) {
 	size := make([]byte, 4)
 	binary.LittleEndian.PutUint32(size, uint32(len(data)))
 
-	defer in.writeLock.Unlock()
 	in.writeLock.Lock()
+	defer in.writeLock.Unlock()
 
 	n,e := in.conn.Write(size)
 	if e!=nil || n!=len(size) {

@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-type StringFrameHandler struct {
+type StringMessageHandler struct {
 	replyCount int
 	print bool
 	myx *sync.Mutex
@@ -23,28 +23,28 @@ const (
 	REPLY = 2;
 )
 
-func NewStringFrameHandler() *StringFrameHandler {
-	sfh:=&StringFrameHandler{}
+func NewStringMessageHandler() *StringMessageHandler {
+	sfh:=&StringMessageHandler{}
 	sfh.print = true
 	sfh.myx = &sync.Mutex{}
 	return sfh
 }
 
-func getData(frame *Frame) *Protocol {
-	ba := NewByteArrayWithData(frame.Data(),0)
+func getData(message *Message) *Protocol {
+	ba := NewByteArrayWithData(message.Data,0)
 	protocol := Protocol{}
 	protocol.op = ba.GetUInt32()
 	protocol.data = ba.GetString()
 	return &protocol
 }
 
-func (sfh *StringFrameHandler) HandleFrame(habitat *Habitat, frame *Frame){
-	protocol := getData(frame)
+func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Message){
+	protocol := getData(message)
 	if protocol.op == REQUEST {
 		if sfh.print {
 			log.Println("Request: " + protocol.data)
 		}
-		sfh.ReplyString(protocol.data, habitat, frame.Source())
+		sfh.ReplyString(protocol.data, habitat, message.Source)
 	} else {
 		sfh.myx.Lock()
 		sfh.replyCount++
@@ -55,7 +55,7 @@ func (sfh *StringFrameHandler) HandleFrame(habitat *Habitat, frame *Frame){
 	}
 }
 
-func (sfh *StringFrameHandler)SendString(str string, habitat *Habitat, dest *HID){
+func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *HID){
 	if sfh.print {
 		log.Debug("Sending Request:" + str)
 	}
@@ -66,12 +66,12 @@ func (sfh *StringFrameHandler)SendString(str string, habitat *Habitat, dest *HID
 	ba := ByteArray{}
 	ba.AddUInt32(REQUEST)
 	ba.AddString(str)
-	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.Data())
+	message := habitat.NewMessage(habitat.GetNID(),dest,ba.Data())
 
-	habitat.Send(frame)
+	habitat.Send(message)
 }
 
-func (sfh *StringFrameHandler)ReplyString(str string, habitat *Habitat, dest *HID){
+func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *HID){
 	if sfh.print {
 		log.Debug("Sending Reply:"+str)
 	}
@@ -82,7 +82,7 @@ func (sfh *StringFrameHandler)ReplyString(str string, habitat *Habitat, dest *HI
 	ba := ByteArray{}
 	ba.AddUInt32(REPLY)
 	ba.AddString(str)
-	frame := habitat.NewFrame(habitat.GetNID(),dest,ba.Data())
+	message := habitat.NewMessage(habitat.GetNID(),dest,ba.Data())
 
-	habitat.Send(frame)
+	habitat.Send(message)
 }

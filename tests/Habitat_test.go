@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 
 func TestHabitat(t *testing.T) {
 	MTU = 512
-	h:=NewStringFrameHandler()
+	h:= NewStringMessageHandler()
 
 	n1,e:=NewHabitat(h)
 	if e!=nil {
@@ -50,7 +50,7 @@ func TestHabitat(t *testing.T) {
 
 func TestSwitch(t *testing.T) {
 	MTU = 512
-	h:=NewStringFrameHandler()
+	h:= NewStringMessageHandler()
 
 	_,e:=NewHabitat(h)
 	if e!=nil {
@@ -78,7 +78,7 @@ func TestSwitch(t *testing.T) {
 
 func TestMultiPart(t *testing.T) {
 	MTU = 4
-	h:=NewStringFrameHandler()
+	h:= NewStringMessageHandler()
 
 	n1,e:=NewHabitat(h)
 	if e!=nil {
@@ -108,7 +108,7 @@ func TestMessageScale(t *testing.T) {
 	numOfMessages:=10000
 	numOfHabitats:=3
 
-	h:=NewStringFrameHandler()
+	h:= NewStringMessageHandler()
 	h.print = false
 
 	habitats:=make([]*Habitat,numOfHabitats)
@@ -142,7 +142,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 	numOfMessages:=10000
 	numOfHabitats:=50
 
-	h:=NewStringFrameHandler()
+	h:= NewStringMessageHandler()
 	h.print = false
 
 	habitats:=make([]*Habitat,numOfHabitats)
@@ -156,12 +156,12 @@ func TestHabitatAndMessageScale(t *testing.T) {
 		log.Info("Habitat HID:"+habitats[i].GetNID().String())
 	}
 
-	time.Sleep(time.Second*2)
+	time.Sleep(time.Second*4)
 	for i:=1;i<len(habitats)-1;i++ {
 		go sendScale(h, habitats[i], habitats[i+1], numOfMessages)
 	}
 
-	time.Sleep(time.Second*5)
+	time.Sleep(time.Second*7)
 
 	if h.replyCount!=numOfMessages*(numOfHabitats-2) {
 		t.Fail()
@@ -171,7 +171,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 	}
 }
 
-func sendScale(h *StringFrameHandler, h1,h2 *Habitat, size int) {
+func sendScale(h *StringMessageHandler, h1,h2 *Habitat, size int) {
 	for i:=0;i<size;i++ {
 		h.SendString("Hello World:"+strconv.Itoa(i),h1,h2.GetNID())
 	}

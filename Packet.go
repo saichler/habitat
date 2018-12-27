@@ -3,14 +3,14 @@ package habitat
 import . "github.com/saichler/utils/golang"
 
 type Packet struct {
-	Source  *HID
-	Dest    *HID
-	Origin  *HID
-	FID     uint32
-	PID     uint32
-	M       bool
-	P       uint16
-	Data    []byte
+	Source *HID
+	Dest   *HID
+	Origin *HID
+	MID    uint32
+	PID    uint32
+	M      bool
+	P      uint16
+	Data   []byte
 }
 
 func (p *Packet) Marshal() []byte {
@@ -18,7 +18,7 @@ func (p *Packet) Marshal() []byte {
 	ba.Add(p.Source.Marshal())
 	ba.Add(p.Dest.Marshal())
 	ba.Add(p.Origin.Marshal())
-	ba.AddUInt32(p.FID)
+	ba.AddUInt32(p.MID)
 	ba.AddUInt32(p.PID)
 	ba.AddBool(p.M)
 	ba.AddUInt16(p.P)
@@ -34,14 +34,7 @@ func (p *Packet) Unmarshal(data []byte) {
 	p.Source.Unmarshal(ba)
 	p.Dest.Unmarshal(ba)
 	p.Origin.Unmarshal(ba)
-	/*
-	if p.Dest.UuidM==0 {
-		p.Dest = nil
-	}
-	if p.Origin.UuidM==0 {
-		p.Origin = nil
-	}*/
-	p.FID=ba.GetUInt32()
+	p.MID =ba.GetUInt32()
 	p.PID=ba.GetUInt32()
 	p.M=ba.GetBool()
 	p.P=ba.GetUInt16()

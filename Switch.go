@@ -46,15 +46,18 @@ func (s *Switch) addInterface(in *Interface) bool {
 
 func (s *Switch) handlePacket(p *Packet,inbox *Inbox) error {
 	if p.Dest.Equal(s.node.hid) {
-		frame := Frame{}
-		frame.Decode(p,inbox)
-		if frame.complete {
-			s.node.frameHandler.HandleFrame(s.node, &frame)
+		message := Message{}
+		message.Decode(p,inbox)
+		if message.Complete {
+			s.node.messageHandler.HandleMessage(s.node, &message)
 		}
 	} else {
 		var in *Interface
 		if p.Dest.sameMachine(s.node.hid) {
 			in = s.internal[*p.Dest]
+			if in==nil {
+				panic("Cannot find:"+p.Dest.String())
+			}
 		} else {
 			in = s.external[p.Dest.getHostID()]
 		}

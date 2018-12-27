@@ -22,11 +22,11 @@ type SourceMultiPart struct {
 }
 
 type MultiPart struct {
-	fID 	uint32
-	packets []*Packet
+	mID                  uint32
+	packets              []*Packet
 	totalExpectedPackets uint32
-	byteLength uint32
-	mtx *sync.Mutex
+	byteLength           uint32
+	mtx                  *sync.Mutex
 }
 
 func NewInbox() *Inbox {
@@ -67,20 +67,20 @@ func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {
 	return multiPart
 }
 
-func (smp *SourceMultiPart) getMultiPart(fid uint32) *MultiPart {
+func (smp *SourceMultiPart) getMultiPart(mid uint32) *MultiPart {
 	smp.mtx.Lock()
 	defer smp.mtx.Unlock()
-	multiPart := smp.m[fid]
+	multiPart := smp.m[mid]
 	if multiPart == nil {
-		multiPart = smp.newMultiPart(fid)
+		multiPart = smp.newMultiPart(mid)
 	}
 	return multiPart
 }
 
-func (smp *SourceMultiPart) delMultiPart(fid uint32) {
+func (smp *SourceMultiPart) delMultiPart(mid uint32) {
 	smp.mtx.Lock()
 	defer smp.mtx.Unlock()
-	delete(smp.m,fid)
+	delete(smp.m, mid)
 }
 
 func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,*SourceMultiPart) {
@@ -92,7 +92,7 @@ func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,*SourceMultiPart) {
 		inbox.pending[hk] = sourceMultiParts
 	}
 	inbox.mtx.Unlock()
-	multiPart:= sourceMultiParts.getMultiPart(packet.FID)
+	multiPart:= sourceMultiParts.getMultiPart(packet.MID)
 	return multiPart,sourceMultiParts
 }
 
@@ -113,12 +113,12 @@ func (inbox *Inbox) addPacket(packet *Packet) ([]byte, bool) {
 	mp.mtx.Unlock()
 
 	if isComplete {
-		frameData := make([]byte,int(mp.byteLength))
+		messageData := make([]byte,int(mp.byteLength))
 		for i:=0;i<int(mp.totalExpectedPackets);i++ {
 			if mp.packets[i].PID !=0 {
 				start := int((mp.packets[i].PID -1)*uint32(MTU))
 				end := start+len(mp.packets[i].Data)
-				copy(frameData[start:end],mp.packets[i].Data[:])
+				copy(messageData[start:end],mp.packets[i].Data[:])
 			}
 		}
 		/* decrypt here
@@ -127,8 +127,8 @@ func (inbox *Inbox) addPacket(packet *Packet) ([]byte, bool) {
 		if err == nil {
 			frame.Data = decData
 		}*/
-		smp.delMultiPart(packet.FID)
-		return frameData,isComplete
+		smp.delMultiPart(packet.MID)
+		return messageData,isComplete
 	}
 	return nil,isComplete
 }

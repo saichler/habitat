@@ -18,7 +18,7 @@ var MTU 		= 512
 
 type Habitat struct {
 	hid          	*HID
-	frameHandler 	FrameHandler
+	messageHandler  MessageHandler
 	isSwitch     	bool
 	nSwitch         *Switch
 	netListener     net.Listener
@@ -54,10 +54,10 @@ func bind() (net.Listener,int,error){
 	return socket,port,nil
 }
 
-func NewHabitat(handler FrameHandler) (*Habitat, error) {
+func NewHabitat(handler MessageHandler) (*Habitat, error) {
 	habitat :=&Habitat{}
 	habitat.nSwitch = newSwitch(habitat)
-	habitat.frameHandler = handler
+	habitat.messageHandler = handler
 
 	socket,port,e:=bind()
 
@@ -80,7 +80,7 @@ func NewHabitat(handler FrameHandler) (*Habitat, error) {
 
 func (habitat *Habitat) start() {
 	go habitat.waitForlinks()
-	time.Sleep(time.Second/10)
+	time.Sleep(time.Second/5)
 }
 
 func (habitat *Habitat) waitForlinks() {
@@ -134,11 +134,11 @@ func (habitat *Habitat) Uplink(host string) {
 	go habitat.addInterface(c)
 }
 
-func (habitat *Habitat) Send(frame *Frame) error {
-	ne:= habitat.nSwitch.getInterface(frame.dest)
-	e:=frame.Send(ne)
+func (habitat *Habitat) Send(message *Message) error {
+	ne:= habitat.nSwitch.getInterface(message.Dest)
+	e:= message.Send(ne)
 	if e!=nil {
-		log.Error("Failed to send frame:",e)
+		log.Error("Failed to send message:",e)
 	}
 	return e
 }
@@ -159,11 +159,11 @@ func (habitat *Habitat) NextFrameID() uint32 {
 	return result
 }
 
-func (habitat *Habitat) NewFrame(source *HID, dest *HID, data []byte) *Frame {
-	frame := Frame{}
-	frame.fID = habitat.NextFrameID()
-	frame.source = source
-	frame.dest = dest
-	frame.data = data
-	return &frame
+func (habitat *Habitat) NewMessage(source *HID, dest *HID, data []byte) *Message {
+	message := Message{}
+	message.MID = habitat.NextFrameID()
+	message.Source = source
+	message.Dest = dest
+	message.Data = data
+	return &message
 }
