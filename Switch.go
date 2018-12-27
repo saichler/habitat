@@ -5,17 +5,17 @@ import (
 )
 
 type Switch struct {
-	node *Habitat
+	habitat  *Habitat
 	internal map[HID]*Interface
 	external map[int32]*Interface
-	lock sync.Mutex
+	lock     sync.Mutex
 }
 
-func newSwitch(node *Habitat) *Switch {
+func newSwitch(habitat *Habitat) *Switch {
 	nSwitch:=&Switch{}
 	nSwitch.internal = make(map[HID]*Interface)
 	nSwitch.external = make(map[int32]*Interface)
-	nSwitch.node = node
+	nSwitch.habitat = habitat
 	return nSwitch
 }
 
@@ -45,25 +45,48 @@ func (s *Switch) addInterface(in *Interface) bool {
 }
 
 func (s *Switch) handlePacket(p *Packet,inbox *Inbox) error {
-	if p.Dest.Equal(s.node.hid) {
+	if p.Dest.EqualNoCID(s.habitat.hid) || p.Dest.UuidL==MULTICAST {
+		if s.habitat.isSwitch && p.Dest.UuidL==MULTICAST {
+			all:=s.getAllInternal()
+			for k,v:=range all {
+				if !k.EqualNoCID(p.Source) {
+					v.sendPacket(p)
+				}
+			}
+		}
 		message := Message{}
 		message.Decode(p,inbox)
 		if message.Complete {
-			s.node.messageHandler.HandleMessage(s.node, &message)
+			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
 		}
 	} else {
+		in:=s.getInterface(p.Dest)
+		/*
 		var in *Interface
-		if p.Dest.sameMachine(s.node.hid) {
+		if p.Dest.sameMachine(s.habitat.hid) {
 			in = s.internal[*p.Dest]
 			if in==nil {
-				panic("Cannot find:"+p.Dest.String())
+				panic("Cannot find Internal:"+p.Dest.String())
 			}
 		} else {
 			in = s.external[p.Dest.getHostID()]
-		}
+			if in==nil {
+				panic("Cannot find External:"+p.Dest.String())
+			}
+		}*/
 		in.sendPacket(p)
 	}
 	return nil
+}
+
+func (s *Switch) getAllInternal() map[HID]*Interface {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	result:=make(map[HID]*Interface)
+	for k,v:=range s.internal {
+		result[k]=v
+	}
+	return result
 }
 
 func (s *Switch) getInterface(hid *HID) *Interface {
@@ -71,11 +94,11 @@ func (s *Switch) getInterface(hid *HID) *Interface {
 	defer s.lock.Unlock()
 
 	var in *Interface
-	if hid.sameMachine(s.node.hid) {
-		if s.node.isSwitch {
+	if hid.sameMachine(s.habitat.hid) {
+		if s.habitat.isSwitch {
 			in = s.internal[*hid]
 		} else {
-			in = s.internal[*s.node.GetSwitchNID()]
+			in = s.internal[*s.habitat.GetSwitchNID()]
 		}
 	} else {
 		in = s.external[hid.getHostID()]
@@ -86,4 +109,11 @@ func (s *Switch) getInterface(hid *HID) *Interface {
 func (s *Switch) GetNodeSwitch(host string) *HID {
 	hostID := GetIpAsInt32(host)
 	return s.external[hostID].peerHID
+}
+
+func (s *Switch) shutdown() {
+	all:=s.getAllInternal()
+	for _,v:=range all {
+		v.conn.Close()
+	}
 }

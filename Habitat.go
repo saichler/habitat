@@ -78,6 +78,12 @@ func NewHabitat(handler MessageHandler) (*Habitat, error) {
 	return habitat, nil
 }
 
+func (habitat *Habitat) Shutdown() {
+	habitat.running = false
+	net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(int(habitat.hid.getPort())))
+	habitat.nSwitch.shutdown()
+}
+
 func (habitat *Habitat) start() {
 	go habitat.waitForlinks()
 	time.Sleep(time.Second/5)
@@ -89,6 +95,9 @@ func (habitat *Habitat) waitForlinks() {
 	}
 	for ;habitat.running;{
 		connection, error := habitat.netListener.Accept()
+		if !habitat.running {
+			break
+		}
 		if error != nil {
 			log.Fatal("Failed to accept a new connection from socket: ", error)
 			return
@@ -96,7 +105,8 @@ func (habitat *Habitat) waitForlinks() {
 		//add a new interface
 		go habitat.addInterface(connection)
 	}
-	log.Info("Habitat has shutdown!")
+	habitat.netListener.Close()
+	log.Info("Habitat:"+habitat.hid.String()+" was shutdown!")
 }
 
 func (habitat *Habitat) addInterface(c net.Conn) error{
@@ -135,10 +145,25 @@ func (habitat *Habitat) Uplink(host string) {
 }
 
 func (habitat *Habitat) Send(message *Message) error {
-	ne:= habitat.nSwitch.getInterface(message.Dest)
-	e:= message.Send(ne)
-	if e!=nil {
-		log.Error("Failed to send message:",e)
+	var e error
+	if message.Dest.EqualNoCID(habitat.hid){
+		habitat.messageHandler.HandleMessage(habitat,message)
+	} else if message.Dest.UuidL==MULTICAST {
+		if !message.Source.EqualNoCID(habitat.hid) {
+			return errors.New("Multicast Message Cannot be forward!")
+		}
+		habitat.messageHandler.HandleMessage(habitat,message)
+		ne := habitat.nSwitch.getInterface(habitat.switchHID)
+		e = message.Send(ne)
+		if e != nil {
+			log.Error("Failed to send multicast message:", e)
+		}
+	} else {
+		ne := habitat.nSwitch.getInterface(message.Dest)
+		e = message.Send(ne)
+		if e != nil {
+			log.Error("Failed to send message:", e)
+		}
 	}
 	return e
 }

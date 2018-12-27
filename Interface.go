@@ -65,10 +65,10 @@ func (in *Interface) read() {
 		err:=in.readNextPacket()
 		if err!=nil {
 			log.Error("Error reading from socket:", err)
-			return
+			break
 		}
 	}
-	log.Info("Interface was shutdown!")
+	log.Info("Interface to:"+in.peerHID.String()+" was shutdown!")
 }
 
 func (in *Interface) handle() {
@@ -93,19 +93,31 @@ func (in *Interface) readNextPacket() error {
 
 	pSize := make([]byte, 4)
 	_, e := in.conn.Read(pSize)
+
+	if !in.habitat.running {
+		return nil
+	}
+
 	if e!=nil {
 		return Error("Failed to read packet size",e)
 	}
 	size:=int(binary.LittleEndian.Uint32(pSize))
 	data := make([]byte,size)
 	_, e = in.conn.Read(data)
+
+	if !in.habitat.running {
+		return nil
+	}
+
 	if e!=nil {
 		return Error("Failed to read header",e)
 	}
 
-	p := &Packet{}
-	p.Unmarshal(data)
-	in.inbox.Push(p)
+	if in.habitat.running {
+		p := &Packet{}
+		p.Unmarshal(data)
+		in.inbox.Push(p)
+	}
 
 	return nil
 }

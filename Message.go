@@ -36,7 +36,6 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 }
 
 func (message *Message) Send(ne *Interface) error {
-
 	/* encrypt here
 key := securityutil.SecurityKey{}
 Data, err := key.Enc(packet.Data)

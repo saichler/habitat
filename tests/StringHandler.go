@@ -42,7 +42,7 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 	protocol := getData(message)
 	if protocol.op == REQUEST {
 		if sfh.print {
-			log.Println("Request: " + protocol.data)
+			log.Info("Request: " + protocol.data+" from:"+message.Source.String())
 		}
 		sfh.ReplyString(protocol.data, habitat, message.Source)
 	} else {
@@ -50,7 +50,7 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 		sfh.replyCount++
 		sfh.myx.Unlock()
 		if sfh.print {
-			log.Println("Reply: " + protocol.data)
+			log.Info("Reply: " + protocol.data+" to:"+message.Dest.String())
 		}
 	}
 }
@@ -73,7 +73,7 @@ func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *H
 
 func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *HID){
 	if sfh.print {
-		log.Debug("Sending Reply:"+str)
+		log.Debug("Sending Reply:"+str+" to:"+dest.String())
 	}
 	if dest==nil {
 		dest = habitat.GetSwitchNID()

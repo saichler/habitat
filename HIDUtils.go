@@ -24,12 +24,6 @@ func FromString(str string) *HID {
 	return &nid
 }
 
-func (nid *HID) Equal (other *HID) bool {
-	return  nid.UuidM == other.UuidM &&
-			nid.UuidL == other.UuidL &&
-			nid.CID == other.CID
-}
-
 func (nid *HID) sameMachine(other *HID) bool {
 	myip := int32(nid.UuidL >> 32)
 	otherip := int32(other.UuidL >> 32)

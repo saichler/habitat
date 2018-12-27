@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+const (
+	MULTICAST=-9999
+)
+
 type HID struct {
 	UuidM int64
 	UuidL int64
@@ -24,6 +28,14 @@ func NewHID(port int) *HID{
 	var ip int32
 	ip = GetIpAddress()
 	newHID.UuidL = int64(ip) << 32 + int64(port)
+	return newHID
+}
+
+func NewMulticastHID(multicastGroup int16) *HID {
+	newHID := &HID{}
+	newHID.UuidM = int64(multicastGroup)
+	newHID.UuidL = MULTICAST
+	newHID.CID = 0
 	return newHID
 }
 
@@ -51,6 +63,17 @@ func (hid *HID) String() string {
 	ip := int32(hid.UuidL >> 32)
 	port := int(hid.UuidL - ((hid.UuidL >> 32) << 32))
 	return strconv.Itoa(int(hid.UuidM))+":"+GetIpAsString(ip)+":"+strconv.Itoa(port)
+}
+
+func (nid *HID) EqualNoCID(other *HID) bool {
+	return  nid.UuidM == other.UuidM &&
+		nid.UuidL == other.UuidL
+}
+
+func (nid *HID) EqualWithCID (other *HID) bool {
+	return  nid.UuidM == other.UuidM &&
+		nid.UuidL == other.UuidL &&
+		nid.CID == other.CID
 }
 
 func GetIpAddress() int32 {

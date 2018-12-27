@@ -46,13 +46,16 @@ func TestHabitat(t *testing.T) {
 		t.Fail()
 		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
+	n1.Shutdown()
+	n2.Shutdown()
+	time.Sleep(time.Second*2)
 }
 
 func TestSwitch(t *testing.T) {
 	MTU = 512
 	h:= NewStringMessageHandler()
 
-	_,e:=NewHabitat(h)
+	s,e:=NewHabitat(h)
 	if e!=nil {
 		log.Error(e)
 		return
@@ -74,6 +77,10 @@ func TestSwitch(t *testing.T) {
 		t.Fail()
 		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
+	n1.Shutdown()
+	n2.Shutdown()
+	s.Shutdown()
+	time.Sleep(time.Second*2)
 }
 
 func TestMultiPart(t *testing.T) {
@@ -101,6 +108,9 @@ func TestMultiPart(t *testing.T) {
 		t.Fail()
 		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
+	n1.Shutdown()
+	n2.Shutdown()
+	time.Sleep(time.Second*2)
 }
 
 func TestMessageScale(t *testing.T) {
@@ -135,6 +145,11 @@ func TestMessageScale(t *testing.T) {
 	} else {
 		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
+
+	for _,hb:=range habitats {
+		hb.Shutdown()
+	}
+	time.Sleep(time.Second*2)
 }
 
 func TestHabitatAndMessageScale(t *testing.T) {
@@ -169,10 +184,52 @@ func TestHabitatAndMessageScale(t *testing.T) {
 	} else {
 		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
+
+	for _,hb:=range habitats {
+		hb.Shutdown()
+	}
+	time.Sleep(time.Second*2)
 }
 
 func sendScale(h *StringMessageHandler, h1,h2 *Habitat, size int) {
 	for i:=0;i<size;i++ {
 		h.SendString("Hello World:"+strconv.Itoa(i),h1,h2.GetNID())
 	}
+}
+
+func TestMulticast(t *testing.T) {
+	MTU = 512
+	numOfHabitats:=50
+
+	h:= NewStringMessageHandler()
+
+	habitats:=make([]*Habitat,numOfHabitats)
+	for i:=0;i<len(habitats);i++ {
+		h,e:=NewHabitat(h)
+		if e!=nil {
+			t.Fail()
+
+		}
+		habitats[i]=h
+		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+	}
+
+	time.Sleep(time.Second*2)
+
+	multicastHID:=NewMulticastHID(100)
+
+	h.SendString("Hello World Multicast",habitats[2],multicastHID)
+
+	time.Sleep(time.Second*2)
+
+	if h.replyCount!=len(habitats) {
+		t.Fail()
+		log.Error("Expected "+strconv.Itoa(len(habitats))+" and got "+strconv.Itoa(h.replyCount))
+	} else {
+		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+	}
+	for _,hb:=range habitats {
+		hb.Shutdown()
+	}
+	time.Sleep(time.Second*2)
 }
