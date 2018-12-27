@@ -4,9 +4,13 @@ import (
 	. "github.com/saichler/habitat"
 	. "github.com/saichler/utils/golang"
 	log "github.com/sirupsen/logrus"
+	"sync"
 )
 
 type StringFrameHandler struct {
+	replyCount int
+	print bool
+	myx *sync.Mutex
 }
 
 type Protocol struct {
@@ -19,6 +23,13 @@ const (
 	REPLY = 2;
 )
 
+func NewStringFrameHandler() *StringFrameHandler {
+	sfh:=&StringFrameHandler{}
+	sfh.print = true
+	sfh.myx = &sync.Mutex{}
+	return sfh
+}
+
 func getData(frame *Frame) *Protocol {
 	ba := NewByteArrayWithData(frame.Data(),0)
 	protocol := Protocol{}
@@ -30,15 +41,24 @@ func getData(frame *Frame) *Protocol {
 func (sfh *StringFrameHandler) HandleFrame(habitat *Habitat, frame *Frame){
 	protocol := getData(frame)
 	if protocol.op == REQUEST {
-		log.Println("Request: "+protocol.data)
+		if sfh.print {
+			log.Println("Request: " + protocol.data)
+		}
 		sfh.ReplyString(protocol.data, habitat, frame.Source())
 	} else {
-		log.Println("Reply: "+protocol.data)
+		sfh.myx.Lock()
+		sfh.replyCount++
+		sfh.myx.Unlock()
+		if sfh.print {
+			log.Println("Reply: " + protocol.data)
+		}
 	}
 }
 
 func (sfh *StringFrameHandler)SendString(str string, habitat *Habitat, dest *HID){
-	log.Debug("Sending Request")
+	if sfh.print {
+		log.Debug("Sending Request:" + str)
+	}
 	if dest==nil {
 		dest = habitat.GetSwitchNID()
 	}
@@ -52,7 +72,9 @@ func (sfh *StringFrameHandler)SendString(str string, habitat *Habitat, dest *HID
 }
 
 func (sfh *StringFrameHandler)ReplyString(str string, habitat *Habitat, dest *HID){
-	log.Debug("Sending Reply")
+	if sfh.print {
+		log.Debug("Sending Reply:"+str)
+	}
 	if dest==nil {
 		dest = habitat.GetSwitchNID()
 	}

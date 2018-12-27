@@ -80,7 +80,7 @@ func NewHabitat(handler FrameHandler) (*Habitat, error) {
 
 func (habitat *Habitat) start() {
 	go habitat.waitForlinks()
-	time.Sleep(time.Second/2)
+	time.Sleep(time.Second/10)
 }
 
 func (habitat *Habitat) waitForlinks() {
@@ -135,7 +135,6 @@ func (habitat *Habitat) Uplink(host string) {
 }
 
 func (habitat *Habitat) Send(frame *Frame) error {
-	log.Debug("Sending....")
 	ne:= habitat.nSwitch.getInterface(frame.dest)
 	e:=frame.Send(ne)
 	if e!=nil {
