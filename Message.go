@@ -24,24 +24,13 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	if packet.M {
 		message.Data,message.Complete=inbox.addPacket(packet)
 	} else {
-		/* decrypt here
-		key := securityutil.SecurityKey{}
-		decData, err := key.Dec(packet.Data)
-		if err == nil {
-			frame.Data = decData
-		}*/
 		message.Data = packet.Data
 		message.Complete = true
 	}
 }
 
 func (message *Message) Send(ne *Interface) error {
-	/* encrypt here
-key := securityutil.SecurityKey{}
-Data, err := key.Enc(packet.Data)
-if err == nil {
-	packet.Data = Data
-}*/
+	message.Data = encrypt(message.Data)
 
 	if len(message.Data)> MTU {
 		totalParts := len(message.Data)/MTU

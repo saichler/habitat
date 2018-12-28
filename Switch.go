@@ -57,23 +57,11 @@ func (s *Switch) handlePacket(p *Packet,inbox *Inbox) error {
 		message := Message{}
 		message.Decode(p,inbox)
 		if message.Complete {
+			message.Data = decrypt(message.Data)
 			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
 		}
 	} else {
 		in:=s.getInterface(p.Dest)
-		/*
-		var in *Interface
-		if p.Dest.sameMachine(s.habitat.hid) {
-			in = s.internal[*p.Dest]
-			if in==nil {
-				panic("Cannot find Internal:"+p.Dest.String())
-			}
-		} else {
-			in = s.external[p.Dest.getHostID()]
-			if in==nil {
-				panic("Cannot find External:"+p.Dest.String())
-			}
-		}*/
 		in.sendPacket(p)
 	}
 	return nil

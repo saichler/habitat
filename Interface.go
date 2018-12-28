@@ -18,7 +18,7 @@ type Interface struct {
 	inbox *Inbox
 }
 
-var EMPTY = make([]byte,0)
+var HANDSHAK_DATA = []byte{127,83,83,127,12,10,11}
 
 func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	in:=&Interface{}
@@ -73,7 +73,7 @@ func (in *Interface) read() {
 
 func (in *Interface) handle() {
 	for ;in.habitat.running;{
-		p := in.inbox.Pop().(*Packet)
+		p := unmarshalToPacket(in.inbox.Pop().([]byte))
 		if p.Data != nil {
 			in.habitat.nSwitch.handlePacket(p,in.inbox)
 		} else {
@@ -114,30 +114,29 @@ func (in *Interface) readNextPacket() error {
 	}
 
 	if in.habitat.running {
-		p := &Packet{}
-		p.Unmarshal(data)
-		in.inbox.Push(p)
+		in.inbox.Push(data)
 	}
 
 	return nil
 }
 
 func (in *Interface) handshake() (bool, error) {
-	log.Info("Starting handshake process...")
+	log.Info("Starting handshake process for:"+in.habitat.hid.String())
 
-	packet := in.CreatePacket(nil,nil,0,0,false,0,EMPTY)
+	packet := in.CreatePacket(nil,nil,0,0,false,0,HANDSHAK_DATA)
+	packet.Data = encrypt(packet.Data)
+
 	in.sendPacket(packet)
-
-	log.Info("Starting handshake process...")
 
 	err:=in.readNextPacket()
 	if err!=nil {
 		return false,err
 	}
 
-	p:=in.inbox.Pop().(*Packet)
+	p:=unmarshalToPacket(in.inbox.Pop().([]byte))
+	p.Data = decrypt(p.Data)
 
-	log.Info("handshaked with nid:", p.Source.String())
+	log.Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())
 	in.peerHID = p.Source
 	if in.peerHID.getHostID()!=in.habitat.hid.getHostID() {
 		in.external = true

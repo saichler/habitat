@@ -2,6 +2,7 @@ package habitat
 
 import (
 	"errors"
+	"github.com/saichler/security"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
@@ -15,6 +16,8 @@ const (
 )
 
 var MTU 		= 512
+var KEY         = "bNhDNirkahDbiJJirSfaNNEXDprtwQoK"
+var ENCRYPTED   = false
 
 type Habitat struct {
 	hid          	*HID
@@ -191,4 +194,30 @@ func (habitat *Habitat) NewMessage(source *HID, dest *HID, data []byte) *Message
 	message.Dest = dest
 	message.Data = data
 	return &message
+}
+
+func encrypt(data []byte) ([]byte) {
+	if ENCRYPTED {
+		encData, err := security.Encode(data, KEY)
+		if err != nil {
+			log.Error("Failed to encrypt data, sending unsecure!", err)
+			return data
+		} else {
+			return encData
+		}
+	}
+	return data
+}
+
+func decrypt(data []byte) []byte {
+	if ENCRYPTED {
+		decryData,err:=security.Decode(data,KEY)
+		if err!=nil {
+			log.Error("Failed to decrypt data!",err)
+			return data
+		} else {
+			return decryData
+		}
+	}
+	return data
 }

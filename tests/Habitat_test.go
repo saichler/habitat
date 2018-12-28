@@ -23,6 +23,7 @@ func TestMain(m *testing.M) {
 
 func TestHabitat(t *testing.T) {
 	MTU = 512
+	ENCRYPTED=false
 	h:= NewStringMessageHandler()
 
 	n1,e:=NewHabitat(h)
@@ -53,6 +54,8 @@ func TestHabitat(t *testing.T) {
 
 func TestSwitch(t *testing.T) {
 	MTU = 512
+	ENCRYPTED=true
+	ENCRYPTED=false
 	h:= NewStringMessageHandler()
 
 	s,e:=NewHabitat(h)
@@ -85,6 +88,7 @@ func TestSwitch(t *testing.T) {
 
 func TestMultiPart(t *testing.T) {
 	MTU = 4
+	ENCRYPTED=false
 	h:= NewStringMessageHandler()
 
 	n1,e:=NewHabitat(h)
@@ -115,6 +119,7 @@ func TestMultiPart(t *testing.T) {
 
 func TestMessageScale(t *testing.T) {
 	MTU = 512
+	ENCRYPTED=false
 	numOfMessages:=10000
 	numOfHabitats:=3
 
@@ -154,6 +159,7 @@ func TestMessageScale(t *testing.T) {
 
 func TestHabitatAndMessageScale(t *testing.T) {
 	MTU = 512
+	ENCRYPTED=false
 	numOfMessages:=10000
 	numOfHabitats:=50
 
@@ -199,6 +205,7 @@ func sendScale(h *StringMessageHandler, h1,h2 *Habitat, size int) {
 
 func TestMulticast(t *testing.T) {
 	MTU = 512
+	ENCRYPTED=false
 	numOfHabitats:=50
 
 	h:= NewStringMessageHandler()
@@ -228,6 +235,77 @@ func TestMulticast(t *testing.T) {
 	} else {
 		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
+	for _,hb:=range habitats {
+		hb.Shutdown()
+	}
+	time.Sleep(time.Second*2)
+}
+
+func TestHabitatEncrypted(t *testing.T) {
+	MTU = 512
+	ENCRYPTED=true
+	h:= NewStringMessageHandler()
+
+	n1,e:=NewHabitat(h)
+	if e!=nil {
+		log.Error(e)
+		return
+	}
+
+	n2,e:=NewHabitat(h)
+
+	log.Info("Node1:",n1.GetNID().String()," Node2:",n2.GetNID().String())
+
+	time.Sleep(time.Second*2)
+
+	h.SendString("Hello World",n1,n2.GetNID())
+	h.SendString("Hello World",n2,n1.GetNID())
+
+	time.Sleep(time.Second*2)
+
+	if h.replyCount!=2 {
+		t.Fail()
+		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
+	}
+	n1.Shutdown()
+	n2.Shutdown()
+	time.Sleep(time.Second*2)
+}
+
+func TestHabitatAndMessageScaleSecure(t *testing.T) {
+	MTU = 512
+	ENCRYPTED=true
+	numOfMessages:=10000
+	numOfHabitats:=50
+
+	h:= NewStringMessageHandler()
+	h.print = false
+
+	habitats:=make([]*Habitat,numOfHabitats)
+	for i:=0;i<len(habitats);i++ {
+		h,e:=NewHabitat(h)
+		if e!=nil {
+			t.Fail()
+
+		}
+		habitats[i]=h
+		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+	}
+
+	time.Sleep(time.Second*4)
+	for i:=1;i<len(habitats)-1;i++ {
+		go sendScale(h, habitats[i], habitats[i+1], numOfMessages)
+	}
+
+	time.Sleep(time.Second*10)
+
+	if h.replyCount!=numOfMessages*(numOfHabitats-2) {
+		t.Fail()
+		log.Error("Expected "+strconv.Itoa(numOfMessages*(numOfHabitats-2))+" and got "+strconv.Itoa(h.replyCount))
+	} else {
+		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+	}
+
 	for _,hb:=range habitats {
 		hb.Shutdown()
 	}

@@ -40,3 +40,9 @@ func (p *Packet) Unmarshal(data []byte) {
 	p.P=ba.GetUInt16()
 	p.Data=ba.GetByteArray()
 }
+
+func unmarshalToPacket(data []byte) *Packet {
+	p:=&Packet{}
+	p.Unmarshal(data)
+	return p
+}
