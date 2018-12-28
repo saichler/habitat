@@ -15,7 +15,6 @@ const (
 type HID struct {
 	UuidM int64
 	UuidL int64
-	CID   uint16
 }
 
 func NewHID(port int) *HID{
@@ -35,7 +34,6 @@ func NewMulticastHID(multicastGroup int16) *HID {
 	newHID := &HID{}
 	newHID.UuidM = int64(multicastGroup)
 	newHID.UuidL = MULTICAST
-	newHID.CID = 0
 	return newHID
 }
 
@@ -44,11 +42,9 @@ func (hid *HID) Marshal() []byte {
 	if hid!=nil {
 		ba.AddInt64(hid.UuidM)
 		ba.AddInt64(hid.UuidL)
-		ba.AddUInt16(hid.CID)
 	} else {
 		ba.AddInt64(0)
 		ba.AddInt64(0)
-		ba.AddUInt16(0)
 	}
 	return ba.Data()
 }
@@ -56,7 +52,6 @@ func (hid *HID) Marshal() []byte {
 func (hid *HID) Unmarshal(ba *ByteArray) {
 	hid.UuidM=ba.GetInt64()
 	hid.UuidL=ba.GetInt64()
-	hid.CID =ba.GetUInt16()
 }
 
 func (hid *HID) String() string {
@@ -65,15 +60,9 @@ func (hid *HID) String() string {
 	return strconv.Itoa(int(hid.UuidM))+":"+GetIpAsString(ip)+":"+strconv.Itoa(port)
 }
 
-func (nid *HID) EqualNoCID(other *HID) bool {
+func (nid *HID) Equal(other *HID) bool {
 	return  nid.UuidM == other.UuidM &&
 		nid.UuidL == other.UuidL
-}
-
-func (nid *HID) EqualWithCID (other *HID) bool {
-	return  nid.UuidM == other.UuidM &&
-		nid.UuidL == other.UuidL &&
-		nid.CID == other.CID
 }
 
 func GetIpAddress() int32 {

@@ -28,10 +28,18 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	return in
 }
 
-func (in *Interface)CreatePacket(dest,origin *HID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
+func (in *Interface)CreatePacket(sourceSID uint16, dest,origin *SID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
 	packet := &Packet{}
 	packet.Source = in.habitat.hid
-	packet.Dest = dest
+	packet.SourceSID = sourceSID
+	if dest!=nil {
+		packet.Dest = dest.Hid
+		packet.DestSID = dest.CID
+	}
+	if origin!=nil {
+		packet.Origin = origin.Hid
+		packet.OriginSID = origin.CID
+	}
 	packet.MID = frameId
 	packet.PID = packetNumber
 	packet.M = multi
@@ -40,9 +48,7 @@ func (in *Interface)CreatePacket(dest,origin *HID, frameId,packetNumber uint32, 
 	return packet
 }
 
-func (in *Interface) sendPacket(p *Packet) {
-	data:=p.Marshal()
-
+func (in *Interface) sendData(data []byte) {
 	size := make([]byte, 4)
 	binary.LittleEndian.PutUint32(size, uint32(len(data)))
 
@@ -60,6 +66,11 @@ func (in *Interface) sendPacket(p *Packet) {
 	}
 }
 
+func (in *Interface) sendPacket(p *Packet) {
+	data:=p.Marshal()
+	in.sendData(data)
+}
+
 func (in *Interface) read() {
 	for ;in.habitat.running;{
 		err:=in.readNextPacket()
@@ -73,9 +84,9 @@ func (in *Interface) read() {
 
 func (in *Interface) handle() {
 	for ;in.habitat.running;{
-		p := unmarshalToPacket(in.inbox.Pop().([]byte))
-		if p.Data != nil {
-			in.habitat.nSwitch.handlePacket(p,in.inbox)
+		data := in.inbox.Pop().([]byte)
+		if data != nil {
+			in.habitat.nSwitch.handlePacket(data,in.inbox)
 		} else {
 			break
 		}
@@ -123,7 +134,7 @@ func (in *Interface) readNextPacket() error {
 func (in *Interface) handshake() (bool, error) {
 	log.Info("Starting handshake process for:"+in.habitat.hid.String())
 
-	packet := in.CreatePacket(nil,nil,0,0,false,0,HANDSHAK_DATA)
+	packet := in.CreatePacket(0,nil,nil,0,0,false,0,HANDSHAK_DATA)
 	packet.Data = encrypt(packet.Data)
 
 	in.sendPacket(packet)
@@ -133,7 +144,10 @@ func (in *Interface) handshake() (bool, error) {
 		return false,err
 	}
 
-	p:=unmarshalToPacket(in.inbox.Pop().([]byte))
+	data:=in.inbox.Pop().([]byte)
+	source,dest,ba:=unmarshalPacketHeader(data)
+	p:=&Packet{}
+	p.UnmarshalAll(source,dest,ba)
 	p.Data = decrypt(p.Data)
 
 	log.Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())

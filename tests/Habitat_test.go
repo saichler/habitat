@@ -34,12 +34,12 @@ func TestHabitat(t *testing.T) {
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.GetNID().String()," Node2:",n2.GetNID().String())
+	log.Info("Node1:",n1.GetSID().String()," Node2:",n2.GetSID().String())
 
 	time.Sleep(time.Second*2)
 
-	h.SendString("Hello World",n1,n2.GetNID())
-	h.SendString("Hello World",n2,n1.GetNID())
+	h.SendString("Hello World",n1,n2.GetSID())
+	h.SendString("Hello World",n2,n1.GetSID())
 
 	time.Sleep(time.Second*2)
 
@@ -67,12 +67,12 @@ func TestSwitch(t *testing.T) {
 	n1,e:=NewHabitat(h)
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.GetNID().String()," Node2:",n2.GetNID().String())
+	log.Info("Node1:",n1.GetSID().String()," Node2:",n2.GetSID().String())
 
 	time.Sleep(time.Second*2)
 
-	h.SendString("Hello World",n1,n2.GetNID())
-	h.SendString("Hello World",n2,n1.GetNID())
+	h.SendString("Hello World",n1,n2.GetSID())
+	h.SendString("Hello World",n2,n1.GetSID())
 
 	time.Sleep(time.Second*2)
 
@@ -99,12 +99,12 @@ func TestMultiPart(t *testing.T) {
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.GetNID().String()," Node2:",n2.GetNID().String())
+	log.Info("Node1:",n1.GetSID().String()," Node2:",n2.GetSID().String())
 
 	time.Sleep(time.Second*2)
 
-	h.SendString("Hello World",n1,n2.GetNID())
-	h.SendString("Hello World",n2,n1.GetNID())
+	h.SendString("Hello World",n1,n2.GetSID())
+	h.SendString("Hello World",n2,n1.GetSID())
 
 	time.Sleep(time.Second*2)
 
@@ -134,7 +134,7 @@ func TestMessageScale(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+		log.Info("Habitat HID:"+habitats[i].GetSID().String())
 	}
 
 	time.Sleep(time.Second*2)
@@ -174,7 +174,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+		log.Info("Habitat HID:"+habitats[i].GetSID().String())
 	}
 
 	time.Sleep(time.Second*4)
@@ -199,7 +199,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 
 func sendScale(h *StringMessageHandler, h1,h2 *Habitat, size int) {
 	for i:=0;i<size;i++ {
-		h.SendString("Hello World:"+strconv.Itoa(i),h1,h2.GetNID())
+		h.SendString("Hello World:"+strconv.Itoa(i),h1,h2.GetSID())
 	}
 }
 
@@ -218,12 +218,12 @@ func TestMulticast(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+		log.Info("Habitat HID:"+habitats[i].GetSID().String())
 	}
 
 	time.Sleep(time.Second*2)
 
-	multicastHID:=NewMulticastHID(100)
+	multicastHID:=NewSID(NewMulticastHID(100),0)
 
 	h.SendString("Hello World Multicast",habitats[2],multicastHID)
 
@@ -235,6 +235,7 @@ func TestMulticast(t *testing.T) {
 	} else {
 		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
+
 	for _,hb:=range habitats {
 		hb.Shutdown()
 	}
@@ -254,12 +255,12 @@ func TestHabitatEncrypted(t *testing.T) {
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.GetNID().String()," Node2:",n2.GetNID().String())
+	log.Info("Node1:",n1.GetSID().String()," Node2:",n2.GetSID().String())
 
 	time.Sleep(time.Second*2)
 
-	h.SendString("Hello World",n1,n2.GetNID())
-	h.SendString("Hello World",n2,n1.GetNID())
+	h.SendString("Hello World",n1,n2.GetSID())
+	h.SendString("Hello World",n2,n1.GetSID())
 
 	time.Sleep(time.Second*2)
 
@@ -289,7 +290,7 @@ func TestHabitatAndMessageScaleSecure(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HID:"+habitats[i].GetNID().String())
+		log.Info("Habitat HID:"+habitats[i].GetSID().String())
 	}
 
 	time.Sleep(time.Second*4)

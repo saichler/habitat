@@ -55,34 +55,34 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 	}
 }
 
-func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *HID){
+func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *SID){
 	if sfh.print {
 		log.Debug("Sending Request:" + str)
 	}
 	if dest==nil {
-		dest = habitat.GetSwitchNID()
+		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
-
+	source:=habitat.GetSID()
 	ba := ByteArray{}
 	ba.AddUInt32(REQUEST)
 	ba.AddString(str)
-	message := habitat.NewMessage(habitat.GetNID(),dest,ba.Data())
+	message := habitat.NewMessage(source,dest,nil,ba.Data())
 
 	habitat.Send(message)
 }
 
-func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *HID){
+func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *SID){
 	if sfh.print {
 		log.Debug("Sending Reply:"+str+" to:"+dest.String())
 	}
 	if dest==nil {
-		dest = habitat.GetSwitchNID()
+		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
-
+	source:=habitat.GetSID()
 	ba := ByteArray{}
 	ba.AddUInt32(REPLY)
 	ba.AddString(str)
-	message := habitat.NewMessage(habitat.GetNID(),dest,ba.Data())
+	message := habitat.NewMessage(source,dest,nil,ba.Data())
 
 	habitat.Send(message)
 }

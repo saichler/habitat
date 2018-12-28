@@ -6,14 +6,9 @@ import (
 )
 
 type Inbox struct {
-	pending map[HidKey]*SourceMultiPart
+	pending map[HID]*SourceMultiPart
 	mtx *sync.Mutex
 	inQueue     *Queue
-}
-
-type HidKey struct {
-	uuidM int64
-	uuidL int64
 }
 
 type SourceMultiPart struct {
@@ -32,7 +27,7 @@ type MultiPart struct {
 func NewInbox() *Inbox {
 	inbox:=&Inbox{}
 	inbox.inQueue = NewQueue()
-	inbox.pending = make(map[HidKey]*SourceMultiPart)
+	inbox.pending = make(map[HID]*SourceMultiPart)
 	inbox.mtx = &sync.Mutex{}
 	return inbox
 }
@@ -50,13 +45,6 @@ func (inbox *Inbox) Pop() interface{} {
 
 func (inbox *Inbox) Push(any interface{}) {
 	inbox.inQueue.Push(any)
-}
-
-func getHidKey(hid *HID) HidKey {
-	hk:=HidKey{}
-	hk.uuidM = hid.UuidM
-	hk.uuidL = hid.UuidL
-	return hk
 }
 
 func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {
@@ -84,12 +72,12 @@ func (smp *SourceMultiPart) delMultiPart(mid uint32) {
 }
 
 func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,*SourceMultiPart) {
-	hk:=getHidKey(packet.Source)
+	hk:=packet.Source
 	inbox.mtx.Lock()
-	sourceMultiParts:=inbox.pending[hk]
+	sourceMultiParts:=inbox.pending[*hk]
 	if sourceMultiParts==nil {
 		sourceMultiParts=newSourceMultipart()
-		inbox.pending[hk] = sourceMultiParts
+		inbox.pending[*hk] = sourceMultiParts
 	}
 	inbox.mtx.Unlock()
 	multiPart:= sourceMultiParts.getMultiPart(packet.MID)

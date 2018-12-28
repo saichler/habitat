@@ -149,10 +149,10 @@ func (habitat *Habitat) Uplink(host string) {
 
 func (habitat *Habitat) Send(message *Message) error {
 	var e error
-	if message.Dest.EqualNoCID(habitat.hid){
+	if message.Dest.Hid.Equal(habitat.hid){
 		habitat.messageHandler.HandleMessage(habitat,message)
-	} else if message.Dest.UuidL==MULTICAST {
-		if !message.Source.EqualNoCID(habitat.hid) {
+	} else if message.Dest.Hid.UuidL==MULTICAST {
+		if !message.Source.Hid.Equal(habitat.hid) {
 			return errors.New("Multicast Message Cannot be forward!")
 		}
 		habitat.messageHandler.HandleMessage(habitat,message)
@@ -162,7 +162,7 @@ func (habitat *Habitat) Send(message *Message) error {
 			log.Error("Failed to send multicast message:", e)
 		}
 	} else {
-		ne := habitat.nSwitch.getInterface(message.Dest)
+		ne := habitat.nSwitch.getInterface(message.Dest.Hid)
 		e = message.Send(ne)
 		if e != nil {
 			log.Error("Failed to send message:", e)
@@ -175,8 +175,12 @@ func (habitat *Habitat) GetSwitchNID() *HID {
 	return habitat.switchHID
 }
 
-func (habitat *Habitat) GetNID() *HID {
+func (habitat *Habitat) GetHID() *HID {
 	return habitat.hid
+}
+
+func (Habitat *Habitat) GetSID() *SID {
+	return NewSID(Habitat.hid,0)
 }
 
 func (habitat *Habitat) NextFrameID() uint32 {
@@ -187,11 +191,12 @@ func (habitat *Habitat) NextFrameID() uint32 {
 	return result
 }
 
-func (habitat *Habitat) NewMessage(source *HID, dest *HID, data []byte) *Message {
+func (habitat *Habitat) NewMessage(source, dest,origin *SID, data []byte) *Message {
 	message := Message{}
 	message.MID = habitat.NextFrameID()
 	message.Source = source
 	message.Dest = dest
+	message.Origin = origin
 	message.Data = data
 	return &message
 }

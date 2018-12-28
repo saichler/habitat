@@ -2,13 +2,20 @@ package habitat
 
 import (
 	. "github.com/saichler/utils/golang"
+	"strconv"
 )
+
+
+type SID struct {
+	Hid *HID
+	CID uint16
+}
 
 type Message struct {
 	MID      uint32
-	Source   *HID
-	Dest     *HID
-	Origin   *HID
+	Source   *SID
+	Dest     *SID
+	Origin   *SID
 	Data     []byte
 	Complete bool
 }
@@ -17,15 +24,31 @@ type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
 }
 
-func (message *Message) Decode (packet *Packet, inbox *Inbox){
-	message.Source = packet.Source
-	message.Dest = packet.Dest
+func (sid *SID) String() string {
+	result:=sid.Hid.String()
+	result+=strconv.Itoa(int(sid.CID))
+	return result
+}
 
+func NewSID(hid *HID,cid uint16) *SID {
+	sid:=&SID{}
+	sid.Hid = hid
+	sid.CID = cid
+	return sid
+}
+
+func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	if packet.M {
 		message.Data,message.Complete=inbox.addPacket(packet)
 	} else {
 		message.Data = packet.Data
 		message.Complete = true
+	}
+
+	if message.Complete {
+		message.Source = NewSID(packet.Source,packet.SourceSID)
+		message.Dest = NewSID(packet.Dest,packet.DestSID)
+		message.Origin = NewSID(packet.Origin,packet.OriginSID)
 	}
 }
 
@@ -44,7 +67,7 @@ func (message *Message) Send(ne *Interface) error {
 		ba.AddUInt32(uint32(totalParts))
 		ba.AddUInt32(uint32(len(message.Data)))
 
-		packet := ne.CreatePacket(message.Dest,nil,message.MID,0,true,0,ba.Data())
+		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,true,0,ba.Data())
 		ne.sendPacket(packet)
 
 		for i:=0;i<totalParts-1;i++ {
@@ -56,11 +79,11 @@ func (message *Message) Send(ne *Interface) error {
 				data = message.Data[loc:loc+left]
 			}
 
-			packet := ne.CreatePacket(message.Dest,nil,message.MID,uint32(i+1),true,0,data)
+			packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,uint32(i+1),true,0,data)
 			ne.sendPacket(packet)
 		}
 	} else {
-		packet := ne.CreatePacket(message.Dest,nil,message.MID,0,false,0,message.Data)
+		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,false,0,message.Data)
 		ne.sendPacket(packet)
 	}
 	return nil

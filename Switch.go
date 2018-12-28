@@ -44,25 +44,31 @@ func (s *Switch) addInterface(in *Interface) bool {
 	return true
 }
 
-func (s *Switch) handlePacket(p *Packet,inbox *Inbox) error {
-	if p.Dest.EqualNoCID(s.habitat.hid) || p.Dest.UuidL==MULTICAST {
-		if s.habitat.isSwitch && p.Dest.UuidL==MULTICAST {
+func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
+	source,dest,ba:=unmarshalPacketHeader(data)
+	if dest.Equal(s.habitat.hid) || dest.UuidL==MULTICAST {
+		if s.habitat.isSwitch && dest.UuidL==MULTICAST {
 			all:=s.getAllInternal()
 			for k,v:=range all {
-				if !k.EqualNoCID(p.Source) {
-					v.sendPacket(p)
+				if !k.Equal(source) {
+					v.sendData(data)
 				}
 			}
 		}
 		message := Message{}
+		p:=&Packet{}
+		p.UnmarshalAll(source,dest,ba)
 		message.Decode(p,inbox)
 		if message.Complete {
 			message.Data = decrypt(message.Data)
 			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
 		}
 	} else {
-		in:=s.getInterface(p.Dest)
-		in.sendPacket(p)
+		in:=s.getInterface(dest)
+		if in==nil {
+			panic("cannot find:"+dest.String())
+		}
+		in.sendData(data)
 	}
 	return nil
 }

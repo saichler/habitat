@@ -1,5 +1,7 @@
 package service
 
-type Service interface {
+import . "github.com/saichler/habitat"
 
+type Service interface {
+	HID() *HID
 }
