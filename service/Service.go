@@ -9,6 +9,7 @@ type Service interface {
 	SID() uint16
 	ServiceMessageHandlers()[]ServiceMessageHandler
 	SetManager(*ServiceManager)
+	GetManager() *ServiceManager
 }
 
 type ServiceMessageHandler interface {
