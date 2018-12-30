@@ -1,11 +1,14 @@
 package habitat
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"net"
+	"strconv"
 	"sync"
+	"time"
 )
 
 type Interface struct {
@@ -16,15 +19,55 @@ type Interface struct {
 	readLock  sync.Mutex
 	writeLock sync.Mutex
 	inbox *Inbox
+	statistics *InterfaceStatistics
+}
+
+type InterfaceStatistics struct {
+	TxMessages int64
+	RxMessages int64
+	TxPackets  int64
+	RxPackets  int64
+	TxBytes    int64
+	RxBytes    int64
+	AvgSpeed   int64
+	mtx *sync.Mutex
 }
 
 var HANDSHAK_DATA = []byte{127,83,83,127,12,10,11}
+
+func (ist *InterfaceStatistics) String() string {
+	buff:=&bytes.Buffer{}
+	buff.WriteString("Rx Messages:"+strconv.Itoa(int(ist.RxMessages)))
+	buff.WriteString(" Tx Messages:"+strconv.Itoa(int(ist.TxMessages)))
+	buff.WriteString(" Rx Packets:"+strconv.Itoa(int(ist.RxPackets)))
+	buff.WriteString(" Tx Packets:"+strconv.Itoa(int(ist.TxPackets)))
+	buff.WriteString(" Rx Bytes:"+strconv.Itoa(int(ist.RxBytes)))
+	buff.WriteString(" Tx Bytes:"+strconv.Itoa(int(ist.TxBytes)))
+	buff.WriteString(" Avg Speed:"+ist.getSpeed())
+	return buff.String()
+}
+
+func (ist *InterfaceStatistics) getSpeed() string {
+	speed:=float64(ist.AvgSpeed)
+	if int64(speed)/1024==0 {
+		return strconv.Itoa(int(speed))+" Bytes/Sec"
+	}
+	speed=speed/1024
+	if int64(speed)/1024==0 {
+		return strconv.Itoa(int(speed))+" Kilo Bytes/Sec"
+	}
+	speed=speed/1024
+	s:=strconv.FormatFloat(speed, 'f', 2, 64)
+	return s+" Mega Bytes/Sec"
+}
 
 func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	in:=&Interface{}
 	in.conn = conn
 	in.habitat = habitat
 	in.inbox = NewInbox()
+	in.statistics = &InterfaceStatistics{}
+	in.statistics.mtx = &sync.Mutex{}
 	return in
 }
 
@@ -48,27 +91,39 @@ func (in *Interface)CreatePacket(sourceSID uint16, dest,origin *SID, frameId,pac
 	return packet
 }
 
-func (in *Interface) sendData(data []byte) {
+func (in *Interface) sendData(data []byte) error {
 	size := make([]byte, 4)
 	binary.LittleEndian.PutUint32(size, uint32(len(data)))
 
 	in.writeLock.Lock()
 	defer in.writeLock.Unlock()
 
+	size = append(size,data...)
+
 	n,e := in.conn.Write(size)
-	if e!=nil || n!=len(size) {
-		panic("Error! Failed to write data size bytes")
+
+	if e!=nil || n!=len(size){
+		log.Error("Failed to send data:",e)
+		in.conn.Close()
+		return e
 	}
 
-	n, e = in.conn.Write(data)
-	if e != nil || n != len(data) {
-		panic("Error! Failed to write data bytes")
+	if n!=len(size){
+		log.Info("Did not send all, send only "+strconv.Itoa(n)+ "out of "+strconv.Itoa(len(size)))
+		time.Sleep(time.Millisecond*100)
+		panic("ppp")
 	}
+	return nil
 }
 
-func (in *Interface) sendPacket(p *Packet) {
+func (in *Interface) sendPacket(p *Packet) (int,error) {
 	data:=p.Marshal()
-	in.sendData(data)
+	in.statistics.mtx.Lock()
+	in.statistics.TxPackets++
+	size:=len(data)+4
+	in.statistics.TxBytes+=int64(size)
+	in.statistics.mtx.Unlock()
+	return size,in.sendData(data)
 }
 
 func (in *Interface) read() {
@@ -80,9 +135,12 @@ func (in *Interface) read() {
 		}
 	}
 	log.Info("Interface to:"+in.peerHID.String()+" was shutdown!")
+	log.Info("Statistics:")
+	log.Info(in.statistics.String())
 }
 
 func (in *Interface) handle() {
+	time.Sleep(time.Second)
 	for ;in.habitat.running;{
 		data := in.inbox.Pop().([]byte)
 		if data != nil {
@@ -98,33 +156,56 @@ func (in *Interface) start() {
 	go in.handle()
 }
 
+func (in *Interface) readBytes(size int) ([]byte, error) {
+	data:=make([]byte,size)
+	n, e := in.conn.Read(data)
+
+	if !in.habitat.running {
+		return nil,nil
+	}
+
+	if e!=nil {
+		return nil,Error("Failed to read packet size",e)
+	}
+
+	if n<size {
+		if n==0 {
+			log.Warn("Expected " + strconv.Itoa(size) + " bytes but only read 0, Sleeping a second...")
+			time.Sleep(time.Second)
+		}
+		data=data[0:n]
+		left,e:=in.readBytes(size-n)
+		if e!=nil {
+			return nil,Error("Failed to read packet size",e)
+		}
+		data = append(data,left...)
+	}
+
+	return data,nil
+}
+
+
 func (in *Interface) readNextPacket() error {
+
 	in.readLock.Lock()
-	defer in.readLock.Unlock()
-
-	pSize := make([]byte, 4)
-	_, e := in.conn.Read(pSize)
-
-	if !in.habitat.running {
-		return nil
+	pSize,e := in.readBytes(4)
+	if pSize==nil || e!=nil {
+		return e
 	}
 
-	if e!=nil {
-		return Error("Failed to read packet size",e)
-	}
 	size:=int(binary.LittleEndian.Uint32(pSize))
-	data := make([]byte,size)
-	_, e = in.conn.Read(data)
 
-	if !in.habitat.running {
-		return nil
+	data,e := in.readBytes(size)
+	if data==nil || e!=nil {
+		return e
 	}
-
-	if e!=nil {
-		return Error("Failed to read header",e)
-	}
+	in.readLock.Unlock()
 
 	if in.habitat.running {
+		in.statistics.mtx.Lock()
+		in.statistics.RxPackets++
+		in.statistics.RxBytes+=int64(len(data))
+		in.statistics.mtx.Unlock()
 		in.inbox.Push(data)
 	}
 
@@ -135,7 +216,6 @@ func (in *Interface) handshake() (bool, error) {
 	log.Info("Starting handshake process for:"+in.habitat.hid.String())
 
 	packet := in.CreatePacket(0,nil,nil,0,0,false,0,HANDSHAK_DATA)
-	packet.Data = encrypt(packet.Data)
 
 	in.sendPacket(packet)
 
@@ -148,7 +228,6 @@ func (in *Interface) handshake() (bool, error) {
 	source,dest,ba:=unmarshalPacketHeader(data)
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)
-	p.Data = decrypt(p.Data)
 
 	log.Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())
 	in.peerHID = p.Source

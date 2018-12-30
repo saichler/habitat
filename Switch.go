@@ -34,9 +34,10 @@ func (s *Switch) addInterface(in *Interface) bool {
 		}
 		s.internal[*in.peerHID] = in
 	} else {
-		_, exist := s.external[in.peerHID.getHostID()]
-		if exist {
-			return false
+		old:= s.external[in.peerHID.getHostID()]
+		if old!=nil {
+			old.conn.Close()
+			delete(s.external,in.peerHID.getHostID())
 		}
 		s.external[in.peerHID.getHostID()] = in
 	}
@@ -46,8 +47,8 @@ func (s *Switch) addInterface(in *Interface) bool {
 
 func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 	source,dest,ba:=unmarshalPacketHeader(data)
-	if dest.Equal(s.habitat.hid) || dest.UuidL==MULTICAST {
-		if s.habitat.isSwitch && dest.UuidL==MULTICAST {
+	if dest.Equal(s.habitat.hid) || dest.IsMulticast() {
+		if s.habitat.isSwitch && dest.IsMulticast() {
 			all:=s.getAllInternal()
 			for k,v:=range all {
 				if !k.Equal(source) {
@@ -60,13 +61,16 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 		p.UnmarshalAll(source,dest,ba)
 		message.Decode(p,inbox)
 		if message.Complete {
-			message.Data = decrypt(message.Data)
+			ne:=s.getInterface(source)
+			ne.statistics.mtx.Lock()
+			ne.statistics.TxMessages++
+			ne.statistics.mtx.Unlock()
 			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
 		}
 	} else {
 		in:=s.getInterface(dest)
 		if in==nil {
-			panic("cannot find:"+dest.String())
+			panic("cannot find:"+dest.String()+" in:"+s.habitat.HID().String())
 		}
 		in.sendData(data)
 	}
@@ -78,6 +82,16 @@ func (s *Switch) getAllInternal() map[HID]*Interface {
 	defer s.lock.Unlock()
 	result:=make(map[HID]*Interface)
 	for k,v:=range s.internal {
+		result[k]=v
+	}
+	return result
+}
+
+func (s *Switch) getAllExternal() map[int32]*Interface {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	result:=make(map[int32]*Interface)
+	for k,v:=range s.external {
 		result[k]=v
 	}
 	return result
@@ -109,5 +123,18 @@ func (s *Switch) shutdown() {
 	all:=s.getAllInternal()
 	for _,v:=range all {
 		v.conn.Close()
+	}
+}
+
+func (s *Switch) multicastFromSwitch(message *Message){
+	internal:=s.getAllInternal()
+	for _,in:=range internal {
+		message.Send(in)
+	}
+	if message.Source.Hid.getHostID()==s.habitat.HID().getHostID() {
+		external:=s.getAllExternal()
+		for _,in:=range external {
+			message.Send(in)
+		}
 	}
 }

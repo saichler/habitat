@@ -13,7 +13,7 @@ type Packet struct {
 	PID    uint32
 	M      bool
 	P      uint16
-	Data   []byte
+	Data []byte
 }
 
 func (p *Packet) Marshal() []byte {
@@ -28,7 +28,7 @@ func (p *Packet) Marshal() []byte {
 	ba.AddUInt32(p.PID)
 	ba.AddBool(p.M)
 	ba.AddUInt16(p.P)
-	ba.AddByteArray(p.Data)
+	ba.AddByteArray(encrypt(p.Data))
 	return ba.Data()
 }
 
@@ -53,5 +53,5 @@ func (p *Packet) UnmarshalAll(source,dest *HID,ba *ByteArray) {
 	p.PID=ba.GetUInt32()
 	p.M=ba.GetBool()
 	p.P=ba.GetUInt16()
-	p.Data=ba.GetByteArray()
+	p.Data=decrypt(ba.GetByteArray())
 }

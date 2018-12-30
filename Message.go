@@ -1,8 +1,11 @@
 package habitat
 
 import (
+	"encoding/binary"
 	. "github.com/saichler/utils/golang"
+	"github.com/sirupsen/logrus"
 	"strconv"
+	"time"
 )
 
 
@@ -16,9 +19,23 @@ type Message struct {
 	Source   *SID
 	Dest     *SID
 	Origin   *SID
+	Type     uint16
 	Data     []byte
 	Complete bool
 }
+
+const (
+	ProtocolType_START uint16 		= 1
+	ProtocolType_SHUTDOWN uint16 	= 2
+	ProtocolType_HANDSHAKE	uint16	= 3
+	ProtocolType_POST uint16		= 10
+	ProtocolType_GET  uint16      	= 11
+	ProtocolType_PUT  uint16      	= 12
+	ProtocolType_DELETE uint16		= 13
+	ProtocolType_PATCH uint16		= 14
+	ProtocolType_Request  uint16    = 20
+	ProtocolType_Reply    uint16    = 21
+)
 
 type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
@@ -46,6 +63,8 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	}
 
 	if message.Complete {
+		message.Type = binary.LittleEndian.Uint16(message.Data[:2])
+		message.Data = message.Data[2:]
 		message.Source = NewSID(packet.Source,packet.SourceSID)
 		message.Dest = NewSID(packet.Dest,packet.DestSID)
 		message.Origin = NewSID(packet.Origin,packet.OriginSID)
@@ -53,9 +72,18 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 }
 
 func (message *Message) Send(ne *Interface) error {
-	message.Data = encrypt(message.Data)
+	ne.statistics.mtx.Lock()
+	ne.statistics.TxMessages++
+	ne.statistics.mtx.Unlock()
+
+	mt := make([]byte, 2)
+	binary.LittleEndian.PutUint16(mt, message.Type)
+	message.Data = append(mt,message.Data...)
 
 	if len(message.Data)> MTU {
+		speedStart:=time.Now().Unix()
+		bytesSent:=0
+
 		totalParts := len(message.Data)/MTU
 		left := len(message.Data) - totalParts*MTU
 		if left>0 {
@@ -63,12 +91,21 @@ func (message *Message) Send(ne *Interface) error {
 		}
 		totalParts++
 
+		if totalParts>1000 {
+			logrus.Info("Large Message, total parts:"+strconv.Itoa(totalParts))
+		}
+
 		ba := ByteArray{}
 		ba.AddUInt32(uint32(totalParts))
 		ba.AddUInt32(uint32(len(message.Data)))
 
 		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,true,0,ba.Data())
-		ne.sendPacket(packet)
+		bs,err:=ne.sendPacket(packet)
+		if err!=nil {
+			return err
+		}
+
+		bytesSent+=bs
 
 		for i:=0;i<totalParts-1;i++ {
 			loc := i*MTU
@@ -80,11 +117,34 @@ func (message *Message) Send(ne *Interface) error {
 			}
 
 			packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,uint32(i+1),true,0,data)
-			ne.sendPacket(packet)
+			if i%1000==0 {
+				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
+			}
+			bs,err = ne.sendPacket(packet)
+			if err!=nil {
+				logrus.Error("Was able to send only"+strconv.Itoa(i)+" packets")
+				break
+			}
+			bytesSent+=bs
+		}
+
+		speedEnd:=time.Now().Unix()
+		t:=speedEnd-speedStart
+		if t>0 {
+			s := float64(bytesSent)
+			speed := int64(s / float64(t))
+			if ne.statistics.AvgSpeed==0 || speed<ne.statistics.AvgSpeed{
+				ne.statistics.AvgSpeed = speed
+			}
 		}
 	} else {
 		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,false,0,message.Data)
 		ne.sendPacket(packet)
 	}
+
 	return nil
+}
+
+func (message *Message) IsMulticast() bool {
+	return message.Dest.Hid.IsMulticast()
 }

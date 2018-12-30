@@ -17,7 +17,7 @@ const (
 
 var MTU 		= 512
 var KEY         = "bNhDNirkahDbiJJirSfaNNEXDprtwQoK"
-var ENCRYPTED   = false
+var ENCRYPTED   = true
 
 type Habitat struct {
 	hid          	*HID
@@ -85,6 +85,9 @@ func (habitat *Habitat) Shutdown() {
 	habitat.running = false
 	net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(int(habitat.hid.getPort())))
 	habitat.nSwitch.shutdown()
+	habitat.lock.L.Lock()
+	habitat.lock.Broadcast()
+	habitat.lock.L.Unlock()
 }
 
 func (habitat *Habitat) start() {
@@ -112,7 +115,7 @@ func (habitat *Habitat) waitForlinks() {
 	log.Info("Habitat:"+habitat.hid.String()+" was shutdown!")
 }
 
-func (habitat *Habitat) addInterface(c net.Conn) error{
+func (habitat *Habitat) addInterface(c net.Conn) (*HID,error) {
 	log.Debug("connecting to: " + c.RemoteAddr().String())
 	in:= newInterface(c, habitat)
 	added,e:=in.handshake()
@@ -121,12 +124,12 @@ func (habitat *Habitat) addInterface(c net.Conn) error{
 	}
 
 	if e!=nil || !added {
-		return e
+		return nil,e
 	}
 
 	in.start()
 
-	return nil
+	return in.peerHID,nil
 }
 
 func (habitat *Habitat) uplinkToSwitch() {
@@ -138,28 +141,36 @@ func (habitat *Habitat) uplinkToSwitch() {
 	go habitat.addInterface(c)
 }
 
-func (habitat *Habitat) Uplink(host string) {
+func (habitat *Habitat) Uplink(host string) *HID {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", host+":"+switchPortString)
 	if e != nil {
 		log.Fatal("Failed to open connection to host: "+host, e)
 	}
-	go habitat.addInterface(c)
+	hid,err:=habitat.addInterface(c)
+	if err!=nil {
+		return nil
+	}
+	return hid
 }
 
 func (habitat *Habitat) Send(message *Message) error {
 	var e error
 	if message.Dest.Hid.Equal(habitat.hid){
 		habitat.messageHandler.HandleMessage(habitat,message)
-	} else if message.Dest.Hid.UuidL==MULTICAST {
+	} else if message.IsMulticast() {
 		if !message.Source.Hid.Equal(habitat.hid) {
 			return errors.New("Multicast Message Cannot be forward!")
 		}
 		habitat.messageHandler.HandleMessage(habitat,message)
-		ne := habitat.nSwitch.getInterface(habitat.switchHID)
-		e = message.Send(ne)
-		if e != nil {
-			log.Error("Failed to send multicast message:", e)
+		if habitat.isSwitch {
+			habitat.nSwitch.multicastFromSwitch(message)
+		} else {
+			ne := habitat.nSwitch.getInterface(habitat.switchHID)
+			e = message.Send(ne)
+			if e != nil {
+				log.Error("Failed to send multicast message:", e)
+			}
 		}
 	} else {
 		ne := habitat.nSwitch.getInterface(message.Dest.Hid)
@@ -175,11 +186,11 @@ func (habitat *Habitat) GetSwitchNID() *HID {
 	return habitat.switchHID
 }
 
-func (habitat *Habitat) GetHID() *HID {
+func (habitat *Habitat) HID() *HID {
 	return habitat.hid
 }
 
-func (Habitat *Habitat) GetSID() *SID {
+func (Habitat *Habitat) SID() *SID {
 	return NewSID(Habitat.hid,0)
 }
 
@@ -191,14 +202,25 @@ func (habitat *Habitat) NextFrameID() uint32 {
 	return result
 }
 
-func (habitat *Habitat) NewMessage(source, dest,origin *SID, data []byte) *Message {
+func (habitat *Habitat) NewMessage(source, dest,origin *SID,ptype uint16, data []byte) *Message {
 	message := Message{}
 	message.MID = habitat.NextFrameID()
 	message.Source = source
 	message.Dest = dest
 	message.Origin = origin
 	message.Data = data
+	message.Type = ptype
 	return &message
+}
+
+func (habitat *Habitat) WaitForShutdown(){
+	habitat.lock.L.Lock()
+	habitat.lock.Wait()
+	habitat.lock.L.Unlock()
+}
+
+func (habitat *Habitat) Running() bool {
+	return habitat.running
 }
 
 func encrypt(data []byte) ([]byte) {
@@ -218,7 +240,7 @@ func decrypt(data []byte) []byte {
 	if ENCRYPTED {
 		decryData,err:=security.Decode(data,KEY)
 		if err!=nil {
-			log.Error("Failed to decrypt data!",err)
+			panic("Failed to decrypt data!")
 			return data
 		} else {
 			return decryData

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	MULTICAST=-9999
+	MULTICAST_MARK=-9999
 )
 
 type HID struct {
@@ -30,10 +30,10 @@ func NewHID(port int) *HID{
 	return newHID
 }
 
-func NewMulticastHID(multicastGroup int16) *HID {
+func NewMulticastHID(multicastGroup uint16) *HID {
 	newHID := &HID{}
 	newHID.UuidM = int64(multicastGroup)
-	newHID.UuidL = MULTICAST
+	newHID.UuidL = MULTICAST_MARK
 	return newHID
 }
 
@@ -60,9 +60,16 @@ func (hid *HID) String() string {
 	return strconv.Itoa(int(hid.UuidM))+":"+GetIpAsString(ip)+":"+strconv.Itoa(port)
 }
 
-func (nid *HID) Equal(other *HID) bool {
-	return  nid.UuidM == other.UuidM &&
-		nid.UuidL == other.UuidL
+func (hid *HID) Equal(other *HID) bool {
+	return  hid.UuidM == other.UuidM &&
+		hid.UuidL == other.UuidL
+}
+
+func (hid *HID) IsMulticast() bool {
+	if hid.UuidL==MULTICAST_MARK {
+		return true
+	}
+	return false
 }
 
 func GetIpAddress() int32 {

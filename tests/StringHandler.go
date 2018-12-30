@@ -2,7 +2,6 @@ package tests
 
 import (
 	. "github.com/saichler/habitat"
-	. "github.com/saichler/utils/golang"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
@@ -13,16 +12,6 @@ type StringMessageHandler struct {
 	myx *sync.Mutex
 }
 
-type Protocol struct {
-	op uint32
-	data string
-}
-
-const (
-	REQUEST = 1
-	REPLY = 2;
-)
-
 func NewStringMessageHandler() *StringMessageHandler {
 	sfh:=&StringMessageHandler{}
 	sfh.print = true
@@ -30,27 +19,19 @@ func NewStringMessageHandler() *StringMessageHandler {
 	return sfh
 }
 
-func getData(message *Message) *Protocol {
-	ba := NewByteArrayWithData(message.Data,0)
-	protocol := Protocol{}
-	protocol.op = ba.GetUInt32()
-	protocol.data = ba.GetString()
-	return &protocol
-}
-
 func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Message){
-	protocol := getData(message)
-	if protocol.op == REQUEST {
+	str:=string(message.Data)
+	if message.Type == ProtocolType_Request {
 		if sfh.print {
-			log.Info("Request: " + protocol.data+" from:"+message.Source.String())
+			log.Info("Request: " +str+" from:"+message.Source.String())
 		}
-		sfh.ReplyString(protocol.data, habitat, message.Source)
+		sfh.ReplyString(str, habitat, message.Source)
 	} else {
 		sfh.myx.Lock()
 		sfh.replyCount++
 		sfh.myx.Unlock()
 		if sfh.print {
-			log.Info("Reply: " + protocol.data+" to:"+message.Dest.String())
+			log.Info("Reply: " + str+" to:"+message.Dest.String())
 		}
 	}
 }
@@ -62,12 +43,8 @@ func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *S
 	if dest==nil {
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
-	source:=habitat.GetSID()
-	ba := ByteArray{}
-	ba.AddUInt32(REQUEST)
-	ba.AddString(str)
-	message := habitat.NewMessage(source,dest,nil,ba.Data())
-
+	source:=habitat.SID()
+	message := habitat.NewMessage(source,dest,nil,ProtocolType_Request,[]byte(str))
 	habitat.Send(message)
 }
 
@@ -78,11 +55,8 @@ func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *
 	if dest==nil {
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
-	source:=habitat.GetSID()
-	ba := ByteArray{}
-	ba.AddUInt32(REPLY)
-	ba.AddString(str)
-	message := habitat.NewMessage(source,dest,nil,ba.Data())
+	source:=habitat.SID()
+	message := habitat.NewMessage(source,dest,nil,ProtocolType_Reply,[]byte(str))
 
 	habitat.Send(message)
 }
