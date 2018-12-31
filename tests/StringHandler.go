@@ -6,6 +6,11 @@ import (
 	"sync"
 )
 
+const (
+	REQUEST uint16 = 1
+	REPLY   uint16 = 2
+)
+
 type StringMessageHandler struct {
 	replyCount int
 	print bool
@@ -21,7 +26,7 @@ func NewStringMessageHandler() *StringMessageHandler {
 
 func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Message){
 	str:=string(message.Data)
-	if message.Type == ProtocolType_Request {
+	if message.Type == REQUEST {
 		if sfh.print {
 			log.Info("Request: " +str+" from:"+message.Source.String())
 		}
@@ -44,7 +49,7 @@ func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *S
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
 	source:=habitat.SID()
-	message := habitat.NewMessage(source,dest,nil,ProtocolType_Request,[]byte(str))
+	message := habitat.NewMessage(source,dest,nil,REQUEST,[]byte(str))
 	habitat.Send(message)
 }
 
@@ -56,7 +61,7 @@ func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
 	source:=habitat.SID()
-	message := habitat.NewMessage(source,dest,nil,ProtocolType_Reply,[]byte(str))
+	message := habitat.NewMessage(source,dest,nil,REPLY,[]byte(str))
 
 	habitat.Send(message)
 }

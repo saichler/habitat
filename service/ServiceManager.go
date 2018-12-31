@@ -33,6 +33,10 @@ func NewServiceManager() (*ServiceManager,error) {
 	sm.services = make(map[uint16]*ServiceHabitat)
 	sm.habitat = habitat
 	sm.lock = sync.NewCond(&sync.Mutex{})
+
+	mgmt:=&MgmtService{}
+	sm.AddService(mgmt)
+
 	return sm,nil
 }
 
@@ -83,7 +87,18 @@ func (sm *ServiceManager) AddService(service Service){
 	sm.lock.L.Unlock()
 
 	go sh.processNextMessage()
-	sh.sendStartServiceMulticast()
+
+	if service.SID()!=2 {
+		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).AddService(service.SID(), service.Name())
+		sh.sendStartService()
+	} else {
+		mh:= StartMgmtHandler{}
+		mh.HandleMessage(sm,service,nil)
+	}
+}
+
+func (sm *ServiceManager) getManagementService() *MgmtService {
+	return sm.services[2].service.(*MgmtService)
 }
 
 func (sm *ServiceManager) getServiceHabitats() map[uint16]*ServiceHabitat {

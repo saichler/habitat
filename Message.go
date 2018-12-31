@@ -24,19 +24,6 @@ type Message struct {
 	Complete bool
 }
 
-const (
-	ProtocolType_START uint16 		= 1
-	ProtocolType_SHUTDOWN uint16 	= 2
-	ProtocolType_HANDSHAKE	uint16	= 3
-	ProtocolType_POST uint16		= 10
-	ProtocolType_GET  uint16      	= 11
-	ProtocolType_PUT  uint16      	= 12
-	ProtocolType_DELETE uint16		= 13
-	ProtocolType_PATCH uint16		= 14
-	ProtocolType_Request  uint16    = 20
-	ProtocolType_Reply    uint16    = 21
-)
-
 type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
 }
