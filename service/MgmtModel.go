@@ -2,8 +2,9 @@ package service
 
 import (
 	. "github.com/saichler/habitat"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"strconv"
+	"time"
 )
 
 type MgmtModel struct {
@@ -11,7 +12,13 @@ type MgmtModel struct {
 }
 
 type HabitatInfo struct {
-	Services map[uint16]string
+	Services map[uint16]*ServiceInfo
+}
+
+type ServiceInfo struct {
+	SID uint16
+	Name string
+	LastPing int64
 }
 
 func NewMgmtModel () *MgmtModel {
@@ -22,16 +29,27 @@ func NewMgmtModel () *MgmtModel {
 
 func (m *MgmtModel) AddHabitatInfo(hid *HID) *HabitatInfo {
 	hi:=&HabitatInfo{}
-	hi.Services = make(map[uint16]string)
+	hi.Services = make(map[uint16]*ServiceInfo)
 	m.Habitats[*hid]=hi
 	return hi
 }
 
 func (m *MgmtModel) GetHabitatInfo(hid *HID) *HabitatInfo {
-	return m.Habitats[*hid]
+	hi:=m.Habitats[*hid]
+	if hi==nil {
+		hi = m.AddHabitatInfo(hid)
+	}
+	return hi
 }
 
-func (hi *HabitatInfo) AddService(sid uint16,name string) {
-	hi.Services[sid]=name
-	logrus.Info("Service Manager Added Service ID:"+strconv.Itoa(int(sid))+" Name:"+name)
+func (hi *HabitatInfo) PutService(sid uint16,name string) {
+	si,ok:=hi.Services[sid]
+	if !ok {
+		si=&ServiceInfo{}
+		si.Name = name
+		si.SID = sid
+		hi.Services[sid]=si
+		log.Info("Service Manager Discovered Service ID:"+strconv.Itoa(int(sid))+" Name:"+name)
+	}
+	si.LastPing = time.Now().Unix()
 }

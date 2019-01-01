@@ -30,7 +30,7 @@ type MessageHandler interface {
 
 func (sid *SID) String() string {
 	result:=sid.Hid.String()
-	result+=strconv.Itoa(int(sid.CID))
+	result+=":"+strconv.Itoa(int(sid.CID))
 	return result
 }
 

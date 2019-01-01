@@ -19,7 +19,8 @@ func (s *MgmtService) Name() string {
 
 func (s *MgmtService) ServiceMessageHandlers()[]ServiceMessageHandler {
 	return []ServiceMessageHandler {
-		&StartMgmtHandler{}}
+		&StartMgmtHandler{},
+	&ServicePingHandler{}}
 }
 
 func(s *MgmtService) SetManager(svm *ServiceManager) {

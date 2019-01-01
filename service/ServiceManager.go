@@ -14,6 +14,7 @@ type ServiceManager struct {
 	habitat *Habitat
 	services map[uint16]*ServiceHabitat
 	lock *sync.Cond
+	multicasts map[uint16][]uint16
 }
 
 type ServiceHabitat struct {
@@ -31,6 +32,8 @@ func NewServiceManager() (*ServiceManager,error) {
 		return nil,err
 	}
 	sm.services = make(map[uint16]*ServiceHabitat)
+	sm.multicasts = make(map[uint16][]uint16)
+
 	sm.habitat = habitat
 	sm.lock = sync.NewCond(&sync.Mutex{})
 
@@ -38,6 +41,14 @@ func NewServiceManager() (*ServiceManager,error) {
 	sm.AddService(mgmt)
 
 	return sm,nil
+}
+
+func (sm *ServiceManager) RegisterForMulticast(service Service, multicastGroup uint16) {
+	_,ok:=sm.multicasts[multicastGroup]
+	if !ok {
+		sm.multicasts[multicastGroup]=make([]uint16,0)
+	}
+	sm.multicasts[multicastGroup] = append(sm.multicasts[multicastGroup],service.SID())
 }
 
 func (sm *ServiceManager) HID() *HID {
@@ -89,12 +100,14 @@ func (sm *ServiceManager) AddService(service Service){
 	go sh.processNextMessage()
 
 	if service.SID()!=2 {
-		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).AddService(service.SID(), service.Name())
+		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).PutService(service.SID(), service.Name())
 		sh.sendStartService()
+		sm.RegisterForMulticast(sm.getManagementService(),sh.service.SID())
 	} else {
 		mh:= StartMgmtHandler{}
 		mh.HandleMessage(sm,service,nil)
 	}
+	go sh.sendServicePingMulticast()
 }
 
 func (sm *ServiceManager) getManagementService() *MgmtService {
@@ -119,9 +132,12 @@ func (sm *ServiceManager) getServiceHabitat(message *Message) *ServiceHabitat {
 
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 	if message.IsMulticast() {
-		shs:=sm.getServiceHabitats()
-		for _,v:=range shs {
-			v.inbox.Push(message)
+		rg:=sm.multicasts[uint16(message.Dest.Hid.UuidM)]
+		if rg!=nil {
+			for _,sid:=range rg {
+				service:=sm.services[sid]
+				service.inbox.Push(message)
+			}
 		}
 	} else {
 		sh:=sm.getServiceHabitat(message)
@@ -174,4 +190,8 @@ func (sh *ServiceHabitat) processNextMessage() {
 
 func (svm *ServiceManager) Habitat() *Habitat {
 	return svm.habitat
+}
+
+func (svm *ServiceManager) ServicePing(sid *SID, name string) {
+	svm.getManagementService().Model.GetHabitatInfo(sid.Hid).PutService(sid.CID,name)
 }

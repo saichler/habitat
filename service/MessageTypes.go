@@ -1,8 +1,8 @@
 package service
 
 const (
-	Message_Type_Service_START     	 uint16 = 1
-	Message_Type_Service_STARTED     uint16 = 2
+	Message_Type_Service_START uint16 = 1
+	Message_Type_Service_Ping  uint16 = 2
 
 	Message_Type_SHUTDOWN  uint16 = 3
 	Message_Type_HANDSHAKE uint16 = 4
