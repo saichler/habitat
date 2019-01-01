@@ -102,7 +102,6 @@ func (sm *ServiceManager) AddService(service Service){
 	if service.SID()!=2 {
 		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).PutService(service.SID(), service.Name())
 		sh.sendStartService()
-		sm.RegisterForMulticast(sm.getManagementService(),sh.service.SID())
 	} else {
 		mh:= StartMgmtHandler{}
 		mh.HandleMessage(sm,service,nil)
@@ -132,6 +131,10 @@ func (sm *ServiceManager) getServiceHabitat(message *Message) *ServiceHabitat {
 
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 	if message.IsMulticast() {
+		if message.Type==Message_Type_Service_Ping {
+			sm.services[2].inbox.Push(message)
+			return
+		}
 		rg:=sm.multicasts[uint16(message.Dest.Hid.UuidM)]
 		if rg!=nil {
 			for _,sid:=range rg {

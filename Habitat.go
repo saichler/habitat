@@ -71,7 +71,11 @@ func NewHabitat(handler MessageHandler) (*Habitat, error) {
 		log.Debug("Bounded to port " + habitat.hid.String())
 		habitat.isSwitch = port==SWITCH_PORT
 		if !habitat.isSwitch {
-			habitat.uplinkToSwitch()
+			e:=habitat.uplinkToSwitch()
+			for ;e!=nil; {
+				time.Sleep(time.Second*5)
+				e=habitat.uplinkToSwitch()
+			}
 		}
 	}
 	habitat.netListener = socket
@@ -132,26 +136,45 @@ func (habitat *Habitat) addInterface(c net.Conn) (*HID,error) {
 	return in.peerHID,nil
 }
 
-func (habitat *Habitat) uplinkToSwitch() {
+func (habitat *Habitat) uplinkToSwitch() error {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", "127.0.0.1:"+switchPortString)
 	if e != nil {
-		log.Fatal("Failed to open connection to switch: ", e)
+		log.Error("Failed to open connection to switch: ", e)
+		return e
 	}
 	go habitat.addInterface(c)
+	return e
 }
 
 func (habitat *Habitat) Uplink(host string) *HID {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", host+":"+switchPortString)
 	if e != nil {
-		log.Fatal("Failed to open connection to host: "+host, e)
+		log.Error("Failed to open connection to host: "+host, e)
 	}
 	hid,err:=habitat.addInterface(c)
 	if err!=nil {
 		return nil
 	}
 	return hid
+}
+
+func (habitat *Habitat) waitForUplinkToSwitch() *Interface {
+	habitat.lock.L.Lock()
+	defer habitat.lock.L.Unlock()
+	ne := habitat.nSwitch.getInterface(habitat.switchHID)
+	if ne==nil || ne.isClosed {
+		log.Error("Uplink to switch is closed, trying to open a new one.")
+		e := habitat.uplinkToSwitch()
+		for ; e != nil; {
+			time.Sleep(time.Second * 5)
+			e = habitat.uplinkToSwitch()
+		}
+	}
+	time.Sleep(time.Second)
+	ne = habitat.nSwitch.getInterface(habitat.switchHID)
+	return ne
 }
 
 func (habitat *Habitat) Send(message *Message) error {
@@ -167,6 +190,9 @@ func (habitat *Habitat) Send(message *Message) error {
 			habitat.nSwitch.multicastFromSwitch(message)
 		} else {
 			ne := habitat.nSwitch.getInterface(habitat.switchHID)
+			if ne==nil || ne.isClosed {
+				ne = habitat.waitForUplinkToSwitch()
+			}
 			e = message.Send(ne)
 			if e != nil {
 				log.Error("Failed to send multicast message:", e)
@@ -174,6 +200,10 @@ func (habitat *Habitat) Send(message *Message) error {
 		}
 	} else {
 		ne := habitat.nSwitch.getInterface(message.Dest.Hid)
+		if ne==nil {
+			log.Error("Unknown Destination:"+message.Dest.String())
+			return errors.New("Unknown Destination:"+message.Dest.String())
+		}
 		e = message.Send(ne)
 		if e != nil {
 			log.Error("Failed to send message:", e)

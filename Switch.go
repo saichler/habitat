@@ -1,6 +1,7 @@
 package habitat
 
 import (
+	"github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -20,7 +21,12 @@ func newSwitch(habitat *Habitat) *Switch {
 }
 
 func (s *Switch) removeInterface(in *Interface) {
-
+	if !in.external {
+		delete(s.internal,*in.peerHID)
+	} else {
+		delete(s.external,in.peerHID.getHostID())
+	}
+	logrus.Info("Interface "+in.peerHID.String()+" was deleted")
 }
 
 func (s *Switch) addInterface(in *Interface) bool {
@@ -28,16 +34,15 @@ func (s *Switch) addInterface(in *Interface) bool {
 	defer s.lock.Unlock()
 
 	if !in.external {
-		_, exist := s.internal[*in.peerHID]
-		if exist {
-			return false
+		old := s.internal[*in.peerHID]
+		if old!=nil {
+			s.removeInterface(old)
 		}
 		s.internal[*in.peerHID] = in
 	} else {
 		old:= s.external[in.peerHID.getHostID()]
 		if old!=nil {
-			old.conn.Close()
-			delete(s.external,in.peerHID.getHostID())
+			s.removeInterface(old)
 		}
 		s.external[in.peerHID.getHostID()] = in
 	}
@@ -62,10 +67,12 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 		message.Decode(p,inbox)
 		if message.Complete {
 			ne:=s.getInterface(source)
-			ne.statistics.mtx.Lock()
-			ne.statistics.TxMessages++
-			ne.statistics.mtx.Unlock()
-			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
+			if ne!=nil {
+				ne.statistics.mtx.Lock()
+				ne.statistics.TxMessages++
+				ne.statistics.mtx.Unlock()
+				s.habitat.messageHandler.HandleMessage(s.habitat, &message)
+			}
 		}
 	} else {
 		in:=s.getInterface(dest)
@@ -82,7 +89,9 @@ func (s *Switch) getAllInternal() map[HID]*Interface {
 	defer s.lock.Unlock()
 	result:=make(map[HID]*Interface)
 	for k,v:=range s.internal {
-		result[k]=v
+		if !v.isClosed {
+			result[k] = v
+		}
 	}
 	return result
 }
@@ -92,7 +101,9 @@ func (s *Switch) getAllExternal() map[int32]*Interface {
 	defer s.lock.Unlock()
 	result:=make(map[int32]*Interface)
 	for k,v:=range s.external {
-		result[k]=v
+		if !v.isClosed {
+			result[k] = v
+		}
 	}
 	return result
 }
@@ -127,14 +138,27 @@ func (s *Switch) shutdown() {
 }
 
 func (s *Switch) multicastFromSwitch(message *Message){
+	faulty:=make([]*Interface,0)
 	internal:=s.getAllInternal()
 	for _,in:=range internal {
-		message.Send(in)
+		err:=message.Send(in)
+		if err!=nil {
+			faulty = append(faulty, in)
+		}
 	}
 	if message.Source.Hid.getHostID()==s.habitat.HID().getHostID() {
 		external:=s.getAllExternal()
 		for _,in:=range external {
-			message.Send(in)
+			logrus.Info("Sending multicast to external switch:"+in.peerHID.String())
+			err:=message.Send(in)
+			if err!=nil {
+				faulty = append(faulty, in)
+			}
 		}
+	}
+	for _,in:=range faulty {
+		s.lock.Lock()
+		s.removeInterface(in)
+		s.lock.Unlock()
 	}
 }

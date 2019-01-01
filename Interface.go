@@ -20,6 +20,7 @@ type Interface struct {
 	writeLock sync.Mutex
 	inbox *Inbox
 	statistics *InterfaceStatistics
+	isClosed bool
 }
 
 type InterfaceStatistics struct {
@@ -104,14 +105,13 @@ func (in *Interface) sendData(data []byte) error {
 
 	if e!=nil || n!=len(size){
 		log.Error("Failed to send data:",e)
-		in.conn.Close()
+		panic("")
 		return e
 	}
 
 	if n!=len(size){
 		log.Info("Did not send all, send only "+strconv.Itoa(n)+ "out of "+strconv.Itoa(len(size)))
 		time.Sleep(time.Millisecond*100)
-		panic("ppp")
 	}
 	return nil
 }
@@ -137,6 +137,7 @@ func (in *Interface) read() {
 	log.Info("Interface to:"+in.peerHID.String()+" was shutdown!")
 	log.Info("Statistics:")
 	log.Info(in.statistics.String())
+	in.isClosed = true
 }
 
 func (in *Interface) handle() {
@@ -217,9 +218,12 @@ func (in *Interface) handshake() (bool, error) {
 
 	packet := in.CreatePacket(0,nil,nil,0,0,false,0,HANDSHAK_DATA)
 
-	in.sendPacket(packet)
+	_,err:=in.sendPacket(packet)
+	if err!=nil {
+		return false,err
+	}
 
-	err:=in.readNextPacket()
+	err=in.readNextPacket()
 	if err!=nil {
 		return false,err
 	}

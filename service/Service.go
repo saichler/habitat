@@ -21,6 +21,7 @@ type ServiceMessageHandler interface {
 
 
 func (sh *ServiceHabitat) sendStartService() {
+	log.Info("Sending Start Service For: "+sh.service.Name())
 	source:=NewSID(sh.serviceManager.habitat.HID(),sh.service.SID())
 	msg:=sh.serviceManager.NewMessage(source,source,source, Message_Type_Service_START,[]byte(sh.service.Name()))
 	sh.serviceManager.Send(msg)
@@ -31,12 +32,13 @@ func (sh *ServiceHabitat) sendServicePingMulticast() {
 	time.Sleep(time.Second)
 	lastSent:=int64(0)
 	for ;sh.serviceManager.habitat.Running(); {
-		if time.Now().Unix()-lastSent>15 {
+		if time.Now().Unix()-lastSent>5 {
 			source := NewSID(sh.serviceManager.habitat.HID(), sh.service.SID())
 			dest := NewSID(NewMulticastHID(sh.service.SID()), sh.service.SID())
 			msg := sh.serviceManager.NewMessage(source, dest, source, Message_Type_Service_Ping, []byte(sh.service.Name()))
 			sh.serviceManager.Send(msg)
 			lastSent=time.Now().Unix()
 		}
+		time.Sleep(time.Second)
 	}
 }

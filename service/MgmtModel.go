@@ -2,9 +2,9 @@ package service
 
 import (
 	. "github.com/saichler/habitat"
-	log "github.com/sirupsen/logrus"
 	"strconv"
 	"time"
+	log "github.com/sirupsen/logrus"
 )
 
 type MgmtModel struct {
@@ -12,6 +12,7 @@ type MgmtModel struct {
 }
 
 type HabitatInfo struct {
+	hid *HID
 	Services map[uint16]*ServiceInfo
 }
 
@@ -30,6 +31,7 @@ func NewMgmtModel () *MgmtModel {
 func (m *MgmtModel) AddHabitatInfo(hid *HID) *HabitatInfo {
 	hi:=&HabitatInfo{}
 	hi.Services = make(map[uint16]*ServiceInfo)
+	hi.hid = hid
 	m.Habitats[*hid]=hi
 	return hi
 }
@@ -49,7 +51,11 @@ func (hi *HabitatInfo) PutService(sid uint16,name string) {
 		si.Name = name
 		si.SID = sid
 		hi.Services[sid]=si
-		log.Info("Service Manager Discovered Service ID:"+strconv.Itoa(int(sid))+" Name:"+name)
 	}
+
+	//if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
+		log.Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(sid)) + " Name:" + name + " in " + hi.hid.String())
+	//}
+
 	si.LastPing = time.Now().Unix()
 }
