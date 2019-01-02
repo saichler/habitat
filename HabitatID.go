@@ -1,6 +1,7 @@
 package habitat
 
 import (
+	"bytes"
 	. "github.com/saichler/utils/golang"
 	"log"
 	"net"
@@ -9,35 +10,36 @@ import (
 )
 
 const (
-	MULTICAST_MARK=-9999
+	PUBLISH_MARK=-9999
 )
 
-type HID struct {
+var PUBLISH_HID = newPublishHabitatID()
+
+type HabitatID struct {
 	UuidM int64
 	UuidL int64
 }
 
-func NewHID(ipv4 string,port int) *HID {
-	newHID := &HID{}
+func NewHID(ipv4 string,port int) *HabitatID {
+	newHID := &HabitatID{}
 	ip:=GetIpAsInt32(ipv4)
 	newHID.UuidM = 0;
 	newHID.UuidL = int64(ip) << 32 + int64(port)
 	return newHID
 }
 
-func NewLocalHID(port int) *HID{
+func NewLocalHID(port int) *HabitatID {
 	return NewHID(GetLocalIpAddress(),port)
 }
 
-func NewMulticastHID(multicastGroup uint16) *HID {
-	newHID := &HID{}
-	newHID.UuidM = int64(multicastGroup)
-	newHID.UuidL = MULTICAST_MARK
+func newPublishHabitatID() *HabitatID {
+	newHID := &HabitatID{}
+	newHID.UuidM = PUBLISH_MARK
+	newHID.UuidL = PUBLISH_MARK
 	return newHID
 }
 
-func (hid *HID) Marshal() []byte {
-	ba := NewByteArray()
+func (hid *HabitatID) Marshal(ba *ByteArray) []byte {
 	if hid!=nil {
 		ba.AddInt64(hid.UuidM)
 		ba.AddInt64(hid.UuidL)
@@ -48,24 +50,32 @@ func (hid *HID) Marshal() []byte {
 	return ba.Data()
 }
 
-func (hid *HID) Unmarshal(ba *ByteArray) {
+func (hid *HabitatID) Unmarshal(ba *ByteArray) {
 	hid.UuidM=ba.GetInt64()
 	hid.UuidL=ba.GetInt64()
 }
 
-func (hid *HID) String() string {
+func (hid *HabitatID) String() string {
 	ip := int32(hid.UuidL >> 32)
 	port := int(hid.UuidL - ((hid.UuidL >> 32) << 32))
-	return strconv.Itoa(int(hid.UuidM))+":"+GetIpAsString(ip)+":"+strconv.Itoa(port)
+	buff:=bytes.Buffer{}
+	buff.WriteString("[UuidM=")
+	buff.WriteString(strconv.Itoa(int(hid.UuidM)))
+	buff.WriteString(",IP=")
+	buff.WriteString(GetIpAsString(ip))
+	buff.WriteString(",Port=")
+	buff.WriteString(strconv.Itoa(port))
+	buff.WriteString("]")
+	return buff.String()
 }
 
-func (hid *HID) Equal(other *HID) bool {
+func (hid *HabitatID) Equal(other *HabitatID) bool {
 	return  hid.UuidM == other.UuidM &&
 		hid.UuidL == other.UuidL
 }
 
-func (hid *HID) IsMulticast() bool {
-	if hid.UuidL==MULTICAST_MARK {
+func (hid *HabitatID) IsPublish() bool {
+	if hid.UuidL==PUBLISH_MARK {
 		return true
 	}
 	return false

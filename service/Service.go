@@ -8,10 +8,10 @@ import (
 
 type Service interface {
 	Name() string
-	SID() uint16
+	ServiceID() *ServiceID
+	ServiceManager() *ServiceManager
+	Init(*ServiceManager,uint16)
 	ServiceMessageHandlers()[]ServiceMessageHandler
-	SetManager(*ServiceManager)
-	GetManager() *ServiceManager
 }
 
 type ServiceMessageHandler interface {
@@ -19,22 +19,20 @@ type ServiceMessageHandler interface {
 	HandleMessage(*ServiceManager,Service,*Message)
 }
 
-
 func (sh *ServiceHabitat) sendStartService() {
 	log.Info("Sending Start Service For: "+sh.service.Name())
-	source:=NewSID(sh.serviceManager.habitat.HID(),sh.service.SID())
-	msg:=sh.serviceManager.NewMessage(source,source,source, Message_Type_Service_START,[]byte(sh.service.Name()))
+	msg:=sh.serviceManager.NewMessage(sh.service.ServiceID(),sh.service.ServiceID(),sh.service.ServiceID(), Message_Type_Service_START,[]byte(sh.service.Name()))
 	sh.serviceManager.Send(msg)
 }
 
-func (sh *ServiceHabitat) sendServicePingMulticast() {
-	log.Info("Adding multicast ping for service: "+sh.service.Name())
+func (sh *ServiceHabitat) repetitiveServicePing() {
+	log.Info("Adding repetitive ping for service: "+sh.service.Name())
 	time.Sleep(time.Second)
 	lastSent:=int64(0)
 	for ;sh.serviceManager.habitat.Running(); {
 		if time.Now().Unix()-lastSent>5 {
-			source := NewSID(sh.serviceManager.habitat.HID(), sh.service.SID())
-			dest := NewSID(NewMulticastHID(sh.service.SID()), sh.service.SID())
+			source:=NewServiceID(sh.serviceManager.habitat.HID(),sh.service.ServiceID().ComponentID(),sh.service.ServiceID().Topic())
+			dest:=NewServiceID(PUBLISH_HID,sh.service.ServiceID().ComponentID(),sh.service.ServiceID().Topic())
 			msg := sh.serviceManager.NewMessage(source, dest, source, Message_Type_Service_Ping, []byte(sh.service.Name()))
 			sh.serviceManager.Send(msg)
 			lastSent=time.Now().Unix()

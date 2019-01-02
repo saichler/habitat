@@ -8,16 +8,11 @@ import (
 )
 
 
-type SID struct {
-	Hid *HID
-	CID uint16
-}
-
 type Message struct {
 	MID      uint32
-	Source   *SID
-	Dest     *SID
-	Origin   *SID
+	Source   *ServiceID
+	Dest     *ServiceID
+	Origin   *ServiceID
 	Type     uint16
 	Data     []byte
 	Complete bool
@@ -25,19 +20,6 @@ type Message struct {
 
 type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
-}
-
-func (sid *SID) String() string {
-	result:=sid.Hid.String()
-	result+=":"+strconv.Itoa(int(sid.CID))
-	return result
-}
-
-func NewSID(hid *HID,cid uint16) *SID {
-	sid:=&SID{}
-	sid.Hid = hid
-	sid.CID = cid
-	return sid
 }
 
 func (message *Message) Decode (packet *Packet, inbox *Inbox){
@@ -53,20 +35,23 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	}
 }
 
-func (message *Message) Unmarshal(onePacket *Packet) {
+func (message *Message) Unmarshal(p *Packet) {
 	ba:=NewByteArrayWithData(message.Data,0)
-	message.Source = NewSID(onePacket.Source,ba.GetUInt16())
-	message.Dest = NewSID(onePacket.Dest,ba.GetUInt16())
-	message.Origin = NewSID(onePacket.Origin,ba.GetUInt16())
+	message.Source = NewServiceID(p.Source,ba.GetUInt16(),ba.GetString())
+	message.Dest = NewServiceID(p.Dest,ba.GetUInt16(),ba.GetString())
+	message.Origin = &ServiceID{}
+	message.Origin.Unmarshal(ba)
 	message.Type = ba.GetUInt16()
 	message.Data = ba.GetByteArray()
 }
 
 func (message *Message) Marshal() []byte {
 	ba:=NewByteArray()
-	ba.AddUInt16(message.Source.CID)
-	ba.AddUInt16(message.Dest.CID)
-	ba.AddUInt16(message.Origin.CID)
+	ba.AddUInt16(message.Source.cid)
+	ba.AddString(message.Source.topic)
+	ba.AddUInt16(message.Dest.cid)
+	ba.AddString(message.Dest.topic)
+	message.Origin.Marshal(ba)
 	ba.AddUInt16(message.Type)
 	ba.AddByteArray(message.Data)
 	return ba.Data()
@@ -100,7 +85,7 @@ func (message *Message) Send(ne *Interface) error {
 		ba.AddUInt32(uint32(totalParts))
 		ba.AddUInt32(uint32(len(messageData)))
 
-		packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,0,true,0,ba.Data())
+		packet := ne.CreatePacket(message.Dest,message.MID,0,true,0,ba.Data())
 		bs,err:=ne.sendPacket(packet)
 		if err!=nil {
 			return err
@@ -117,7 +102,7 @@ func (message *Message) Send(ne *Interface) error {
 				packetData = messageData[loc:loc+left]
 			}
 
-			packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,uint32(i+1),true,0, packetData)
+			packet := ne.CreatePacket(message.Dest,message.MID,uint32(i+1),true,0, packetData)
 			if i%1000==0 {
 				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
@@ -139,13 +124,13 @@ func (message *Message) Send(ne *Interface) error {
 			}
 		}
 	} else {
-		packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,0,false,0,messageData)
+		packet := ne.CreatePacket(message.Dest,message.MID,0,false,0,messageData)
 		ne.sendPacket(packet)
 	}
 
 	return nil
 }
 
-func (message *Message) IsMulticast() bool {
-	return message.Dest.Hid.IsMulticast()
+func (message *Message) IsPublish() bool {
+	return message.Dest.IsPublish()
 }

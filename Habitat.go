@@ -20,15 +20,15 @@ var KEY         = "bNhDNirkahDbiJJirSfaNNEXDprtwQoK"
 var ENCRYPTED   = true
 
 type Habitat struct {
-	hid          	*HID
-	messageHandler  MessageHandler
-	isSwitch     	bool
-	nSwitch         *Switch
-	netListener     net.Listener
-	switchHID 		*HID
-	lock *sync.Cond
-	nextFrameID uint32
-	running bool
+	hid            *HabitatID
+	messageHandler MessageHandler
+	isSwitch       bool
+	nSwitch        *Switch
+	netListener    net.Listener
+	switchHID      *HabitatID
+	lock           *sync.Cond
+	nextMessageID  uint32
+	running        bool
 }
 
 func bind() (net.Listener,int,error){
@@ -119,7 +119,7 @@ func (habitat *Habitat) waitForlinks() {
 	log.Info("Habitat:"+habitat.hid.String()+" was shutdown!")
 }
 
-func (habitat *Habitat) addInterface(c net.Conn) (*HID,error) {
+func (habitat *Habitat) addInterface(c net.Conn) (*HabitatID,error) {
 	log.Debug("connecting to: " + c.RemoteAddr().String())
 	in:= newInterface(c, habitat)
 	added,e:=in.handshake()
@@ -147,7 +147,7 @@ func (habitat *Habitat) uplinkToSwitch() error {
 	return e
 }
 
-func (habitat *Habitat) Uplink(host string) *HID {
+func (habitat *Habitat) Uplink(host string) *HabitatID {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", host+":"+switchPortString)
 	if e != nil {
@@ -179,10 +179,10 @@ func (habitat *Habitat) waitForUplinkToSwitch() *Interface {
 
 func (habitat *Habitat) Send(message *Message) error {
 	var e error
-	if message.Dest.Hid.Equal(habitat.hid){
+	if message.Dest.hid.Equal(habitat.hid){
 		habitat.messageHandler.HandleMessage(habitat,message)
-	} else if message.IsMulticast() {
-		if !message.Source.Hid.Equal(habitat.hid) {
+	} else if message.IsPublish() {
+		if !message.Source.hid.Equal(habitat.hid) {
 			return errors.New("Multicast Message Cannot be forward!")
 		}
 		habitat.messageHandler.HandleMessage(habitat,message)
@@ -199,7 +199,7 @@ func (habitat *Habitat) Send(message *Message) error {
 			}
 		}
 	} else {
-		ne := habitat.nSwitch.getInterface(message.Dest.Hid)
+		ne := habitat.nSwitch.getInterface(message.Dest.hid)
 		if ne==nil {
 			log.Error("Unknown Destination:"+message.Dest.String())
 			return errors.New("Unknown Destination:"+message.Dest.String())
@@ -212,29 +212,29 @@ func (habitat *Habitat) Send(message *Message) error {
 	return e
 }
 
-func (habitat *Habitat) GetSwitchNID() *HID {
+func (habitat *Habitat) GetSwitchNID() *HabitatID {
 	return habitat.switchHID
 }
 
-func (habitat *Habitat) HID() *HID {
+func (habitat *Habitat) HID() *HabitatID {
 	return habitat.hid
 }
 
-func (Habitat *Habitat) SID() *SID {
-	return NewSID(Habitat.hid,0)
+func (habitat *Habitat) ServiceID() *ServiceID {
+	return NewServiceID(habitat.hid,0,"Habitat")
 }
 
-func (habitat *Habitat) NextFrameID() uint32 {
+func (habitat *Habitat) nextMID() uint32 {
 	habitat.lock.L.Lock()
 	defer habitat.lock.L.Unlock()
-	result:=habitat.nextFrameID
-	habitat.nextFrameID++
+	result:=habitat.nextMessageID
+	habitat.nextMessageID++
 	return result
 }
 
-func (habitat *Habitat) NewMessage(source, dest,origin *SID,ptype uint16, data []byte) *Message {
+func (habitat *Habitat) NewMessage(source, dest, origin *ServiceID,ptype uint16, data []byte) *Message {
 	message := Message{}
-	message.MID = habitat.NextFrameID()
+	message.MID = habitat.nextMID()
 	message.Source = source
 	message.Dest = dest
 	message.Origin = origin

@@ -1,32 +1,42 @@
 package service
 
-import (
-	"strconv"
+import . "github.com/saichler/habitat"
+
+const (
+	MANAGEMENT_SERVICE_TOPIC="Management Service Topic"
+	MANAGEMENT_ID = 10
 )
 
 type MgmtService struct {
 	svm *ServiceManager
+	sid *ServiceID
 	Model *MgmtModel
 }
 
-func (s *MgmtService) SID() uint16 {
-	return 2
-}
 
 func (s *MgmtService) Name() string {
-	return "Habitat Management Service ID="+strconv.Itoa(int(s.SID()))
+	return "Habitat Management Service"
+}
+
+func (s *MgmtService) ServiceID() *ServiceID {
+	return s.sid
+}
+
+func (s *MgmtService) Topic() string {
+	return MANAGEMENT_SERVICE_TOPIC
+}
+
+func (s *MgmtService) ServiceManager() *ServiceManager {
+	return s.svm
+}
+
+func (s *MgmtService) Init(svm *ServiceManager,cid uint16) {
+	s.svm = svm
+	s.sid = NewServiceID(svm.habitat.HID(),cid,s.Topic())
 }
 
 func (s *MgmtService) ServiceMessageHandlers()[]ServiceMessageHandler {
 	return []ServiceMessageHandler {
 		&StartMgmtHandler{},
-	&ServicePingHandler{}}
-}
-
-func(s *MgmtService) SetManager(svm *ServiceManager) {
-	s.svm = svm
-}
-
-func(s *MgmtService) GetManager() *ServiceManager{
-	return s.svm
+		&ServicePingHandler{}}
 }

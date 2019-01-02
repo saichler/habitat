@@ -13,7 +13,7 @@ import (
 
 type Interface struct {
 	habitat   *Habitat
-	peerHID   *HID
+	peerHID   *HabitatID
 	conn      net.Conn
 	external  bool
 	readLock  sync.Mutex
@@ -72,14 +72,11 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	return in
 }
 
-func (in *Interface)CreatePacket(dest,origin *SID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
+func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
 	packet := &Packet{}
 	packet.Source = in.habitat.hid
 	if dest!=nil {
-		packet.Dest = dest.Hid
-	}
-	if origin!=nil {
-		packet.Origin = origin.Hid
+		packet.Dest = dest.hid
 	}
 	packet.MID = frameId
 	packet.PID = packetNumber
@@ -213,7 +210,7 @@ func (in *Interface) readNextPacket() error {
 func (in *Interface) handshake() (bool, error) {
 	log.Info("Starting handshake process for:"+in.habitat.hid.String())
 
-	packet := in.CreatePacket(nil,nil,0,0,false,0,HANDSHAK_DATA)
+	packet := in.CreatePacket(nil,0,0,false,0,HANDSHAK_DATA)
 
 	_,err:=in.sendPacket(packet)
 	if err!=nil {

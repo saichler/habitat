@@ -41,26 +41,26 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 	}
 }
 
-func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *SID){
+func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *ServiceID){
 	if sfh.print {
 		log.Debug("Sending Request:" + str)
 	}
 	if dest==nil {
-		dest=NewSID(habitat.GetSwitchNID(),0)
+		dest=NewServiceID(habitat.GetSwitchNID(),0,"")
 	}
-	source:=habitat.SID()
+	source:=NewServiceID(habitat.HID(),0,"")
 	message := habitat.NewMessage(source,dest,source,REQUEST,[]byte(str))
 	habitat.Send(message)
 }
 
-func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *SID){
+func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *ServiceID){
 	if sfh.print {
 		log.Debug("Sending Reply:"+str+" to:"+dest.String())
 	}
 	if dest==nil {
-		dest=NewSID(habitat.GetSwitchNID(),0)
+		dest=NewServiceID(habitat.GetSwitchNID(),0,"")
 	}
-	source:=habitat.SID()
+	source:=NewServiceID(habitat.HID(),0,"")
 	message := habitat.NewMessage(source,dest,source,REPLY,[]byte(str))
 
 	habitat.Send(message)

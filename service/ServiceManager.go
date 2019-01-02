@@ -14,7 +14,8 @@ type ServiceManager struct {
 	habitat *Habitat
 	services map[uint16]*ServiceHabitat
 	lock *sync.Cond
-	multicasts map[uint16][]uint16
+	topics map[string][]uint16
+	nextComponentID uint16
 }
 
 type ServiceHabitat struct {
@@ -32,7 +33,8 @@ func NewServiceManager() (*ServiceManager,error) {
 		return nil,err
 	}
 	sm.services = make(map[uint16]*ServiceHabitat)
-	sm.multicasts = make(map[uint16][]uint16)
+	sm.topics = make(map[string][]uint16)
+	sm.nextComponentID = 10
 
 	sm.habitat = habitat
 	sm.lock = sync.NewCond(&sync.Mutex{})
@@ -43,15 +45,15 @@ func NewServiceManager() (*ServiceManager,error) {
 	return sm,nil
 }
 
-func (sm *ServiceManager) RegisterForMulticast(service Service, multicastGroup uint16) {
-	_,ok:=sm.multicasts[multicastGroup]
+func (sm *ServiceManager) RegisterForTopic(service Service,topic string) {
+	_,ok:=sm.topics[topic]
 	if !ok {
-		sm.multicasts[multicastGroup]=make([]uint16,0)
+		sm.topics[topic]=make([]uint16,0)
 	}
-	sm.multicasts[multicastGroup] = append(sm.multicasts[multicastGroup],service.SID())
+	sm.topics[topic] = append(sm.topics[topic],service.ServiceID().ComponentID())
 }
 
-func (sm *ServiceManager) HID() *HID {
+func (sm *ServiceManager) HID() *HabitatID {
 	return sm.habitat.HID()
 }
 
@@ -84,9 +86,15 @@ func (sm *ServiceManager) InstallService(libraryPath string) error {
 }
 
 func (sm *ServiceManager) AddService(service Service){
+	sm.lock.L.Lock()
+	componentId:=sm.nextComponentID
+	sm.nextComponentID++
+	sm.lock.L.Unlock()
+
+	service.Init(sm,componentId)
+
 	sh:=&ServiceHabitat{}
 	sh.service = service
-	sh.service.SetManager(sm)
 	sh.serviceManager = sm
 	sh.inbox=NewQueue()
 	sh.serviceHandlers = make(map[uint16]ServiceMessageHandler)
@@ -94,23 +102,23 @@ func (sm *ServiceManager) AddService(service Service){
 		sh.serviceHandlers[v.Type()]=v
 	}
 	sm.lock.L.Lock()
-	sm.services[service.SID()]=sh
+	sm.services[service.ServiceID().ComponentID()]=sh
 	sm.lock.L.Unlock()
 
 	go sh.processNextMessage()
 
-	if service.SID()!=2 {
-		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).PutService(service.SID(), service.Name())
+	if service.ServiceID().Topic()!=MANAGEMENT_SERVICE_TOPIC {
+		sm.getManagementService().Model.GetHabitatInfo(sm.HID()).PutService(service.ServiceID().ComponentID(),service.ServiceID().Topic(), service.Name())
 		sh.sendStartService()
 	} else {
 		mh:= StartMgmtHandler{}
 		mh.HandleMessage(sm,service,nil)
 	}
-	go sh.sendServicePingMulticast()
+	go sh.repetitiveServicePing()
 }
 
 func (sm *ServiceManager) getManagementService() *MgmtService {
-	return sm.services[2].service.(*MgmtService)
+	return sm.services[MANAGEMENT_ID].service.(*MgmtService)
 }
 
 func (sm *ServiceManager) getServiceHabitats() map[uint16]*ServiceHabitat {
@@ -124,18 +132,27 @@ func (sm *ServiceManager) getServiceHabitats() map[uint16]*ServiceHabitat {
 }
 
 func (sm *ServiceManager) getServiceHabitat(message *Message) *ServiceHabitat {
+	cid:=message.Dest.ComponentID()
 	sm.lock.L.Lock()
 	defer sm.lock.L.Unlock()
-	return sm.services[message.Dest.CID]
+	if cid==0 {
+		for k,v:=range sm.services {
+			if v.service.ServiceID().Topic()==message.Dest.Topic() {
+				cid = k
+				break
+			}
+		}
+	}
+	return sm.services[cid]
 }
 
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
-	if message.IsMulticast() {
+	if message.IsPublish() {
 		if message.Type==Message_Type_Service_Ping {
-			sm.services[2].inbox.Push(message)
+			sm.services[MANAGEMENT_ID].inbox.Push(message)
 			return
 		}
-		rg:=sm.multicasts[uint16(message.Dest.Hid.UuidM)]
+		rg:=sm.topics[message.Dest.Topic()]
 		if rg!=nil {
 			for _,sid:=range rg {
 				service:=sm.services[sid]
@@ -156,7 +173,7 @@ func (sm *ServiceManager) WaitForShutdown(){
 	sm.habitat.WaitForShutdown()
 }
 
-func (sm *ServiceManager) NewMessage(source, dest,origin *SID, ptype uint16,data []byte) *Message {
+func (sm *ServiceManager) NewMessage(source, dest,origin *ServiceID, ptype uint16,data []byte) *Message {
 	return sm.habitat.NewMessage(source,dest,origin,ptype,data)
 }
 
@@ -164,17 +181,13 @@ func (sm *ServiceManager) Send(message *Message) {
 	sm.habitat.Send(message)
 }
 
-func (sm *ServiceManager) Source(s Service) *SID {
-	return NewSID(sm.HID(),s.SID())
-}
-
 func (sm *ServiceManager) CreateAndReply(s Service,r *Message, ptype uint16,data []byte) {
-	msg:=sm.NewMessage(sm.Source(s),r.Source,sm.Source(s),ptype,data)
+	msg:=sm.NewMessage(s.ServiceID(),r.Source,s.ServiceID(),ptype,data)
 	sm.Send(msg)
 }
 
-func(sm *ServiceManager) CreateAndSend(s Service,dest *SID,ptype uint16,data []byte) {
-	msg := sm.NewMessage(sm.Source(s), dest, sm.Source(s), ptype, data)
+func(sm *ServiceManager) CreateAndSend(s Service,dest *ServiceID,ptype uint16,data []byte) {
+	msg := sm.NewMessage(s.ServiceID(), dest, s.ServiceID(), ptype, data)
 	sm.Send(msg)
 }
 
@@ -195,10 +208,10 @@ func (svm *ServiceManager) Habitat() *Habitat {
 	return svm.habitat
 }
 
-func (svm *ServiceManager) ServicePing(sid *SID, name string) {
-	svm.getManagementService().Model.GetHabitatInfo(sid.Hid).PutService(sid.CID,name)
+func (svm *ServiceManager) ServicePing(sid *ServiceID, name string) {
+	svm.getManagementService().Model.GetHabitatInfo(sid.Hid()).PutService(sid.ComponentID(),sid.Topic(),name)
 }
 
-func (svm *ServiceManager) GetAllAdjacents(service Service) []*SID {
-	return svm.getManagementService().Model.GetAllServicesOfType(service.SID())
+func (svm *ServiceManager) GetAllAdjacents(service Service) []*ServiceID {
+	return svm.getManagementService().Model.GetAllServicesOfType(service.ServiceID().Topic())
 }

@@ -19,6 +19,6 @@ func (h *StartMgmtHandler) HandleMessage(svm *ServiceManager,service Service,m *
 	mdl:=NewMgmtModel(svm.habitat.HID())
 	mgmtService.Model = mdl
 	hi:=mdl.AddHabitatInfo(svm.HID())
-	hi.PutService(service.SID(),service.Name())
+	hi.PutService(service.ServiceID().ComponentID(),service.ServiceID().Topic(),service.Name())
 	logrus.Info("***** Management Service for "+svm.HID().String()+" Started! *****")
 }

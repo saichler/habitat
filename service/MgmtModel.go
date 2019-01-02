@@ -9,29 +9,30 @@ import (
 )
 
 type MgmtModel struct {
-	myHid *HID
+	myHid *HabitatID
 	Habitats *ConcurrentMap
 }
 
 type HabitatInfo struct {
-	hid *HID
+	hid *HabitatID
 	Services *ConcurrentMap
 }
 
 type ServiceInfo struct {
-	SID uint16
+	Cid uint16
+	Topic string
 	Name string
 	LastPing int64
 }
 
-func NewMgmtModel (myHid *HID) *MgmtModel {
+func NewMgmtModel (myHid *HabitatID) *MgmtModel {
 	mgmt:=&MgmtModel{}
 	mgmt.myHid = myHid
 	mgmt.Habitats = NewConcurrentMap()
 	return mgmt
 }
 
-func (m *MgmtModel) AddHabitatInfo(hid *HID) *HabitatInfo {
+func (m *MgmtModel) AddHabitatInfo(hid *HabitatID) *HabitatInfo {
 	hi:=&HabitatInfo{}
 	hi.Services = NewConcurrentMap()
 	hi.hid = hid
@@ -39,7 +40,7 @@ func (m *MgmtModel) AddHabitatInfo(hid *HID) *HabitatInfo {
 	return hi
 }
 
-func (m *MgmtModel) GetHabitatInfo(hid *HID) *HabitatInfo {
+func (m *MgmtModel) GetHabitatInfo(hid *HabitatID) *HabitatInfo {
 	hi,_:=m.Habitats.Get(*hid)
 	if hi==nil {
 		hi = m.AddHabitatInfo(hid)
@@ -47,40 +48,41 @@ func (m *MgmtModel) GetHabitatInfo(hid *HID) *HabitatInfo {
 	return hi.(*HabitatInfo)
 }
 
-func (hi *HabitatInfo) PutService(sid uint16,name string) {
-	existing,_:=hi.Services.Get(sid)
+func (hi *HabitatInfo) PutService(componentId uint16,topic,name string) {
+	existing,_:=hi.Services.Get(componentId)
 	var si *ServiceInfo
 	if existing==nil {
 		si=&ServiceInfo{}
 		si.Name = name
-		si.SID = sid
-		hi.Services.Put(sid,si)
+		si.Topic = topic
+		si.Cid = componentId
+		hi.Services.Put(componentId,si)
 	} else {
 		si=existing.(*ServiceInfo)
 	}
 
 	if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
-		log.Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(sid)) + " Name:" + name + " in " + hi.hid.String())
+		log.Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(componentId)) + " Name:" + name + " in " + hi.hid.String())
 	}
 
 	si.LastPing = time.Now().Unix()
 }
 
-func (model *MgmtModel) GetAllServicesOfType(t uint16) []*SID {
-	result:=make([]*SID,0)
+func (model *MgmtModel) GetAllServicesOfType(topic string) []*ServiceID {
+	result:=make([]*ServiceID,0)
 	allHabitats:=model.Habitats.GetMap()
 	for k,v:=range allHabitats {
-		key:=k.(HID)
+		key:=k.(HabitatID)
 		value:=v.(*HabitatInfo)
 		if !key.Equal(model.myHid) {
 			allServices:=value.Services.GetMap()
-			for s,_:=range allServices {
-				sid:=s.(uint16)
-				if sid==t {
-					hid:=&HID{}
+			for _,s:=range allServices {
+				si:=s.(*ServiceInfo)
+				if si.Topic==topic {
+					hid:=&HabitatID{}
 					hid.UuidM = key.UuidM
 					hid.UuidL = key.UuidL
-					result = append(result,NewSID(hid,sid))
+					result = append(result,NewServiceID(hid,si.Cid,si.Topic))
 				}
 			}
 		}

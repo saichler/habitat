@@ -48,7 +48,7 @@ func (s *Switch) addInterface(in *Interface) bool {
 
 func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 	source,dest,ba:=unmarshalPacketHeader(data)
-	if dest.IsMulticast() {
+	if dest.IsPublish() {
 		s.handleMulticast(source,dest,data,ba,inbox)
 	} else if dest.Equal(s.habitat.HID()) {
 		s.handleMyPacket(source,dest,data,ba,inbox)
@@ -59,7 +59,7 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 	return nil
 }
 
-func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *ByteArray, inbox *Inbox){
+func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte, ba *ByteArray, inbox *Inbox){
 	if s.habitat.isSwitch {
 		all:=s.getAllInternal()
 		for k,v:=range all {
@@ -78,7 +78,7 @@ func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *ByteArray, in
 	s.handleMyPacket(source,dest,data,ba,inbox)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *ByteArray, inbox *Inbox){
+func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteArray, inbox *Inbox){
 	message := Message{}
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)
@@ -93,11 +93,11 @@ func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *ByteArray, inb
 	}
 }
 
-func (s *Switch) getAllInternal() map[HID]*Interface {
-	result:=make(map[HID]*Interface)
+func (s *Switch) getAllInternal() map[HabitatID]*Interface {
+	result:=make(map[HabitatID]*Interface)
 	all:=s.internal.GetMap()
 	for k,v:=range all {
-		key:=k.(HID)
+		key:=k.(HabitatID)
 		value:=v.(*Interface)
 		if !value.isClosed {
 			result[key] = value
@@ -119,7 +119,7 @@ func (s *Switch) getAllExternal() map[int32]*Interface {
 	return result
 }
 
-func (s *Switch) getInterface(hid *HID) *Interface {
+func (s *Switch) getInterface(hid *HabitatID) *Interface {
 	var in *Interface
 	if hid.sameMachine(s.habitat.hid) {
 		if s.habitat.isSwitch {
@@ -157,7 +157,7 @@ func (s *Switch) multicastFromSwitch(message *Message){
 			faulty = append(faulty, in)
 		}
 	}
-	if message.Source.Hid.getHostID()==s.habitat.HID().getHostID() {
+	if message.Source.hid.getHostID()==s.habitat.HID().getHostID() {
 		external:=s.getAllExternal()
 		for _,in:=range external {
 			err:=message.Send(in)

@@ -7,8 +7,8 @@ import (
 
 
 
-func FromString(str string) *HID {
-	nid := HID{}
+func FromString(str string) *HabitatID {
+	nid := HabitatID{}
 	index := strings.Index(str,":")
 	mostString :=  str[0:index]
 	lessString := str[index+1:len(str)]
@@ -24,16 +24,16 @@ func FromString(str string) *HID {
 	return &nid
 }
 
-func (nid *HID) sameMachine(other *HID) bool {
+func (nid *HabitatID) sameMachine(other *HabitatID) bool {
 	myip := int32(nid.UuidL >> 32)
 	otherip := int32(other.UuidL >> 32)
 	return myip == otherip
 }
 
-func (nid *HID) getHostID() int32 {
+func (nid *HabitatID) getHostID() int32 {
 	return int32(nid.UuidL >> 32)
 }
 
-func (nid *HID) getPort() int32 {
+func (nid *HabitatID) getPort() int32 {
 	return int32(nid.UuidL - ((nid.UuidL >> 32) << 32))
 }
