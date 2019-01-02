@@ -22,17 +22,13 @@ func (s *MgmtService) ServiceID() *ServiceID {
 	return s.sid
 }
 
-func (s *MgmtService) Topic() string {
-	return MANAGEMENT_SERVICE_TOPIC
-}
-
 func (s *MgmtService) ServiceManager() *ServiceManager {
 	return s.svm
 }
 
 func (s *MgmtService) Init(svm *ServiceManager,cid uint16) {
 	s.svm = svm
-	s.sid = NewServiceID(svm.habitat.HID(),cid,s.Topic())
+	s.sid = NewServiceID(svm.habitat.HID(),cid,MANAGEMENT_SERVICE_TOPIC)
 }
 
 func (s *MgmtService) ServiceMessageHandlers()[]ServiceMessageHandler {
