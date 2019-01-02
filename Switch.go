@@ -1,53 +1,48 @@
 package habitat
 
 import (
-	"github.com/saichler/utils/golang"
+	. "github.com/saichler/utils/golang"
 	"github.com/sirupsen/logrus"
-	"sync"
 )
 
 type Switch struct {
 	habitat  *Habitat
-	internal map[HID]*Interface
-	external map[int32]*Interface
-	lock     sync.Mutex
+	internal *ConcurrentMap
+	external *ConcurrentMap
+
 }
 
 func newSwitch(habitat *Habitat) *Switch {
 	nSwitch:=&Switch{}
-	nSwitch.internal = make(map[HID]*Interface)
-	nSwitch.external = make(map[int32]*Interface)
+	nSwitch.internal = NewConcurrentMap()
+	nSwitch.external = NewConcurrentMap()
 	nSwitch.habitat = habitat
 	return nSwitch
 }
 
 func (s *Switch) removeInterface(in *Interface) {
 	if !in.external {
-		delete(s.internal,*in.peerHID)
+		s.internal.Del(*in.peerHID)
 	} else {
-		delete(s.external,in.peerHID.getHostID())
+		s.external.Del(in.peerHID.getHostID())
 	}
 	logrus.Info("Interface "+in.peerHID.String()+" was deleted")
 }
 
 func (s *Switch) addInterface(in *Interface) bool {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	if !in.external {
-		old := s.internal[*in.peerHID]
+		old,_ := s.internal.Get(*in.peerHID)
 		if old!=nil {
-			s.removeInterface(old)
+			s.removeInterface(old.(*Interface))
 		}
-		s.internal[*in.peerHID] = in
+		s.internal.Put(*in.peerHID,in)
 	} else {
-		old:= s.external[in.peerHID.getHostID()]
+		old,_:=s.external.Get(in.peerHID.getHostID())
 		if old!=nil {
-			s.removeInterface(old)
+			s.removeInterface(old.(*Interface))
 		}
-		s.external[in.peerHID.getHostID()] = in
+		s.external.Put(in.peerHID.getHostID(),in)
 	}
-
 	return true
 }
 
@@ -64,7 +59,7 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 	return nil
 }
 
-func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *utils.ByteArray, inbox *Inbox){
+func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *ByteArray, inbox *Inbox){
 	if s.habitat.isSwitch {
 		all:=s.getAllInternal()
 		for k,v:=range all {
@@ -83,7 +78,7 @@ func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *utils.ByteArr
 	s.handleMyPacket(source,dest,data,ba,inbox)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *utils.ByteArray, inbox *Inbox){
+func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *ByteArray, inbox *Inbox){
 	message := Message{}
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)
@@ -99,53 +94,51 @@ func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *utils.ByteArra
 }
 
 func (s *Switch) getAllInternal() map[HID]*Interface {
-	s.lock.Lock()
-	defer s.lock.Unlock()
 	result:=make(map[HID]*Interface)
-	for k,v:=range s.internal {
-		if !v.isClosed {
-			result[k] = v
+	all:=s.internal.GetMap()
+	for k,v:=range all {
+		key:=k.(HID)
+		value:=v.(*Interface)
+		if !value.isClosed {
+			result[key] = value
 		}
 	}
 	return result
 }
 
 func (s *Switch) getAllExternal() map[int32]*Interface {
-	s.lock.Lock()
-	defer s.lock.Unlock()
 	result:=make(map[int32]*Interface)
-	for k,v:=range s.external {
-		if !v.isClosed {
-			result[k] = v
+	all:=s.external.GetMap()
+	for k,v:=range all{
+		key:=k.(int32)
+		value:=v.(*Interface)
+		if !value.isClosed {
+			result[key] = value
 		}
 	}
 	return result
 }
 
 func (s *Switch) getInterface(hid *HID) *Interface {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	var in *Interface
 	if hid.sameMachine(s.habitat.hid) {
 		if s.habitat.isSwitch {
-			in = s.internal[*hid]
+			inter,_ := s.internal.Get(*hid)
+			in = inter.(*Interface)
 		} else {
-			in = s.internal[*s.habitat.GetSwitchNID()]
+			inter,_ := s.internal.Get(*s.habitat.GetSwitchNID())
+			in = inter.(*Interface)
 		}
 	} else {
 		if s.habitat.isSwitch {
-			in = s.external[hid.getHostID()]
+			inter,_ := s.external.Get(hid.getHostID())
+			in = inter.(*Interface)
 		} else {
-			in = s.internal[*s.habitat.GetSwitchNID()]
+			inter,_ := s.internal.Get(*s.habitat.GetSwitchNID())
+			in = inter.(*Interface)
 		}
 	}
 	return in
-}
-
-func (s *Switch) GetNodeSwitch(host string) *HID {
-	hostID := GetIpAsInt32(host)
-	return s.external[hostID].peerHID
 }
 
 func (s *Switch) shutdown() {
@@ -174,8 +167,6 @@ func (s *Switch) multicastFromSwitch(message *Message){
 		}
 	}
 	for _,in:=range faulty {
-		s.lock.Lock()
 		s.removeInterface(in)
-		s.lock.Unlock()
 	}
 }

@@ -198,3 +198,7 @@ func (svm *ServiceManager) Habitat() *Habitat {
 func (svm *ServiceManager) ServicePing(sid *SID, name string) {
 	svm.getManagementService().Model.GetHabitatInfo(sid.Hid).PutService(sid.CID,name)
 }
+
+func (svm *ServiceManager) GetAllAdjacents(service Service) []*SID {
+	return svm.getManagementService().Model.GetAllServicesOfType(service.SID())
+}

@@ -2,18 +2,20 @@ package service
 
 import (
 	. "github.com/saichler/habitat"
+	. "github.com/saichler/utils/golang"
+	log "github.com/sirupsen/logrus"
 	"strconv"
 	"time"
-	log "github.com/sirupsen/logrus"
 )
 
 type MgmtModel struct {
-	Habitats map[HID]*HabitatInfo
+	myHid *HID
+	Habitats *ConcurrentMap
 }
 
 type HabitatInfo struct {
 	hid *HID
-	Services map[uint16]*ServiceInfo
+	Services *ConcurrentMap
 }
 
 type ServiceInfo struct {
@@ -22,35 +24,39 @@ type ServiceInfo struct {
 	LastPing int64
 }
 
-func NewMgmtModel () *MgmtModel {
+func NewMgmtModel (myHid *HID) *MgmtModel {
 	mgmt:=&MgmtModel{}
-	mgmt.Habitats = make(map[HID]*HabitatInfo)
+	mgmt.myHid = myHid
+	mgmt.Habitats = NewConcurrentMap()
 	return mgmt
 }
 
 func (m *MgmtModel) AddHabitatInfo(hid *HID) *HabitatInfo {
 	hi:=&HabitatInfo{}
-	hi.Services = make(map[uint16]*ServiceInfo)
+	hi.Services = NewConcurrentMap()
 	hi.hid = hid
-	m.Habitats[*hid]=hi
+	m.Habitats.Put(*hid,hi)
 	return hi
 }
 
 func (m *MgmtModel) GetHabitatInfo(hid *HID) *HabitatInfo {
-	hi:=m.Habitats[*hid]
+	hi,_:=m.Habitats.Get(*hid)
 	if hi==nil {
 		hi = m.AddHabitatInfo(hid)
 	}
-	return hi
+	return hi.(*HabitatInfo)
 }
 
 func (hi *HabitatInfo) PutService(sid uint16,name string) {
-	si,ok:=hi.Services[sid]
-	if !ok {
+	existing,_:=hi.Services.Get(sid)
+	var si *ServiceInfo
+	if existing==nil {
 		si=&ServiceInfo{}
 		si.Name = name
 		si.SID = sid
-		hi.Services[sid]=si
+		hi.Services.Put(sid,si)
+	} else {
+		si=existing.(*ServiceInfo)
 	}
 
 	if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
@@ -58,4 +64,26 @@ func (hi *HabitatInfo) PutService(sid uint16,name string) {
 	}
 
 	si.LastPing = time.Now().Unix()
+}
+
+func (model *MgmtModel) GetAllServicesOfType(t uint16) []*SID {
+	result:=make([]*SID,0)
+	allHabitats:=model.Habitats.GetMap()
+	for k,v:=range allHabitats {
+		key:=k.(HID)
+		value:=v.(*HabitatInfo)
+		if !key.Equal(model.myHid) {
+			allServices:=value.Services.GetMap()
+			for s,_:=range allServices {
+				sid:=s.(uint16)
+				if sid==t {
+					hid:=&HID{}
+					hid.UuidM = key.UuidM
+					hid.UuidL = key.UuidL
+					result = append(result,NewSID(hid,sid))
+				}
+			}
+		}
+	}
+	return result
 }

@@ -6,14 +6,13 @@ import (
 )
 
 type Inbox struct {
-	pending map[HID]*SourceMultiPart
-	mtx *sync.Mutex
+	pending *ConcurrentMap
 	inQueue     *Queue
 }
 
 type SourceMultiPart struct {
-	m map[uint32]*MultiPart
-	mtx *sync.Mutex
+	//m map[uint32]*MultiPart
+	m *ConcurrentMap
 }
 
 type MultiPart struct {
@@ -27,15 +26,13 @@ type MultiPart struct {
 func NewInbox() *Inbox {
 	inbox:=&Inbox{}
 	inbox.inQueue = NewQueue()
-	inbox.pending = make(map[HID]*SourceMultiPart)
-	inbox.mtx = &sync.Mutex{}
+	inbox.pending = NewConcurrentMap()
 	return inbox
 }
 
 func newSourceMultipart() *SourceMultiPart {
 	smp:=&SourceMultiPart{}
-	smp.mtx = &sync.Mutex{}
-	smp.m = make(map[uint32]*MultiPart)
+	smp.m = NewConcurrentMap()
 	return smp
 }
 
@@ -51,35 +48,35 @@ func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {
 	multiPart := &MultiPart{}
 	multiPart.packets = make([]*Packet,0)
 	multiPart.mtx = &sync.Mutex{}
-	smp.m[fid] = multiPart
+	smp.m.Put(fid,multiPart)
 	return multiPart
 }
 
 func (smp *SourceMultiPart) getMultiPart(mid uint32) *MultiPart {
-	smp.mtx.Lock()
-	defer smp.mtx.Unlock()
-	multiPart := smp.m[mid]
-	if multiPart == nil {
+	var multiPart *MultiPart
+	exist,ok := smp.m.Get(mid)
+	if !ok {
 		multiPart = smp.newMultiPart(mid)
+	} else {
+		multiPart = exist.(*MultiPart)
 	}
 	return multiPart
 }
 
 func (smp *SourceMultiPart) delMultiPart(mid uint32) {
-	smp.mtx.Lock()
-	defer smp.mtx.Unlock()
-	delete(smp.m, mid)
+	smp.m.Del(mid)
 }
 
 func (inbox *Inbox) getMultiPart(packet *Packet) (*MultiPart,*SourceMultiPart) {
 	hk:=packet.Source
-	inbox.mtx.Lock()
-	sourceMultiParts:=inbox.pending[*hk]
-	if sourceMultiParts==nil {
+	var sourceMultiParts *SourceMultiPart
+	existing,ok:=inbox.pending.Get(*hk)
+	if !ok {
 		sourceMultiParts=newSourceMultipart()
-		inbox.pending[*hk] = sourceMultiParts
+		inbox.pending.Put(*hk,sourceMultiParts)
+	} else {
+		sourceMultiParts=existing.(*SourceMultiPart)
 	}
-	inbox.mtx.Unlock()
 	multiPart:= sourceMultiParts.getMultiPart(packet.MID)
 	return multiPart,sourceMultiParts
 }
