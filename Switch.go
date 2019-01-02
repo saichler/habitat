@@ -1,6 +1,7 @@
 package habitat
 
 import (
+	"github.com/saichler/utils/golang"
 	"github.com/sirupsen/logrus"
 	"sync"
 )
@@ -52,36 +53,49 @@ func (s *Switch) addInterface(in *Interface) bool {
 
 func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 	source,dest,ba:=unmarshalPacketHeader(data)
-	if dest.Equal(s.habitat.hid) || dest.IsMulticast() {
-		if s.habitat.isSwitch && dest.IsMulticast() {
-			all:=s.getAllInternal()
-			for k,v:=range all {
-				if !k.Equal(source) {
-					v.sendData(data)
-				}
-			}
-		}
-		message := Message{}
-		p:=&Packet{}
-		p.UnmarshalAll(source,dest,ba)
-		message.Decode(p,inbox)
-		if message.Complete {
-			ne:=s.getInterface(source)
-			if ne!=nil {
-				ne.statistics.mtx.Lock()
-				ne.statistics.TxMessages++
-				ne.statistics.mtx.Unlock()
-				s.habitat.messageHandler.HandleMessage(s.habitat, &message)
-			}
-		}
+	if dest.IsMulticast() {
+		s.handleMulticast(source,dest,data,ba,inbox)
+	} else if dest.Equal(s.habitat.HID()) {
+		s.handleMyPacket(source,dest,data,ba,inbox)
 	} else {
 		in:=s.getInterface(dest)
-		if in==nil {
-			panic("cannot find:"+dest.String()+" in:"+s.habitat.HID().String())
-		}
 		in.sendData(data)
 	}
 	return nil
+}
+
+func (s *Switch) handleMulticast(source,dest *HID,data []byte, ba *utils.ByteArray, inbox *Inbox){
+	if s.habitat.isSwitch {
+		all:=s.getAllInternal()
+		for k,v:=range all {
+			if !k.Equal(source) {
+				v.sendData(data)
+			}
+		}
+		if source.sameMachine(s.habitat.hid) {
+			all:=s.getAllExternal()
+			for _,v:=range all {
+				v.sendData(data)
+			}
+		}
+	}
+
+	s.handleMyPacket(source,dest,data,ba,inbox)
+}
+
+func (s *Switch) handleMyPacket(source,dest *HID,data []byte, ba *utils.ByteArray, inbox *Inbox){
+	message := Message{}
+	p:=&Packet{}
+	p.UnmarshalAll(source,dest,ba)
+	message.Decode(p,inbox)
+
+	if message.Complete {
+		ne:=s.getInterface(source)
+		ne.statistics.mtx.Lock()
+		ne.statistics.TxMessages++
+		ne.statistics.mtx.Unlock()
+		s.habitat.messageHandler.HandleMessage(s.habitat, &message)
+	}
 }
 
 func (s *Switch) getAllInternal() map[HID]*Interface {
@@ -120,7 +134,11 @@ func (s *Switch) getInterface(hid *HID) *Interface {
 			in = s.internal[*s.habitat.GetSwitchNID()]
 		}
 	} else {
-		in = s.external[hid.getHostID()]
+		if s.habitat.isSwitch {
+			in = s.external[hid.getHostID()]
+		} else {
+			in = s.internal[*s.habitat.GetSwitchNID()]
+		}
 	}
 	return in
 }
@@ -149,7 +167,6 @@ func (s *Switch) multicastFromSwitch(message *Message){
 	if message.Source.Hid.getHostID()==s.habitat.HID().getHostID() {
 		external:=s.getAllExternal()
 		for _,in:=range external {
-			logrus.Info("Sending multicast to external switch:"+in.peerHID.String())
 			err:=message.Send(in)
 			if err!=nil {
 				faulty = append(faulty, in)

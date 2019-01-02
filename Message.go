@@ -1,7 +1,6 @@
 package habitat
 
 import (
-	"encoding/binary"
 	. "github.com/saichler/utils/golang"
 	"github.com/sirupsen/logrus"
 	"strconv"
@@ -50,12 +49,27 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	}
 
 	if message.Complete {
-		message.Type = binary.LittleEndian.Uint16(message.Data[:2])
-		message.Data = message.Data[2:]
-		message.Source = NewSID(packet.Source,packet.SourceSID)
-		message.Dest = NewSID(packet.Dest,packet.DestSID)
-		message.Origin = NewSID(packet.Origin,packet.OriginSID)
+		message.Unmarshal(packet)
 	}
+}
+
+func (message *Message) Unmarshal(onePacket *Packet) {
+	ba:=NewByteArrayWithData(message.Data,0)
+	message.Source = NewSID(onePacket.Source,ba.GetUInt16())
+	message.Dest = NewSID(onePacket.Dest,ba.GetUInt16())
+	message.Origin = NewSID(onePacket.Origin,ba.GetUInt16())
+	message.Type = ba.GetUInt16()
+	message.Data = ba.GetByteArray()
+}
+
+func (message *Message) Marshal() []byte {
+	ba:=NewByteArray()
+	ba.AddUInt16(message.Source.CID)
+	ba.AddUInt16(message.Dest.CID)
+	ba.AddUInt16(message.Origin.CID)
+	ba.AddUInt16(message.Type)
+	ba.AddByteArray(message.Data)
+	return ba.Data()
 }
 
 func (message *Message) Send(ne *Interface) error {
@@ -63,19 +77,19 @@ func (message *Message) Send(ne *Interface) error {
 	ne.statistics.TxMessages++
 	ne.statistics.mtx.Unlock()
 
-	mt := make([]byte, 2)
-	binary.LittleEndian.PutUint16(mt, message.Type)
-	message.Data = append(mt,message.Data...)
+	messageData:=message.Marshal()
 
-	if len(message.Data)> MTU {
+	if len(messageData)> MTU {
 		speedStart:=time.Now().Unix()
 		bytesSent:=0
 
-		totalParts := len(message.Data)/MTU
-		left := len(message.Data) - totalParts*MTU
+		totalParts := len(messageData)/MTU
+		left := len(messageData) - totalParts*MTU
+
 		if left>0 {
 			totalParts++
 		}
+
 		totalParts++
 
 		if totalParts>1000 {
@@ -84,9 +98,9 @@ func (message *Message) Send(ne *Interface) error {
 
 		ba := ByteArray{}
 		ba.AddUInt32(uint32(totalParts))
-		ba.AddUInt32(uint32(len(message.Data)))
+		ba.AddUInt32(uint32(len(messageData)))
 
-		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,true,0,ba.Data())
+		packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,0,true,0,ba.Data())
 		bs,err:=ne.sendPacket(packet)
 		if err!=nil {
 			return err
@@ -96,14 +110,14 @@ func (message *Message) Send(ne *Interface) error {
 
 		for i:=0;i<totalParts-1;i++ {
 			loc := i*MTU
-			var data []byte
+			var packetData []byte
 			if i<totalParts-2 || left==0 {
-				data = message.Data[loc:loc+MTU]
+				packetData = messageData[loc:loc+MTU]
 			} else {
-				data = message.Data[loc:loc+left]
+				packetData = messageData[loc:loc+left]
 			}
 
-			packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,uint32(i+1),true,0,data)
+			packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,uint32(i+1),true,0, packetData)
 			if i%1000==0 {
 				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
@@ -125,7 +139,7 @@ func (message *Message) Send(ne *Interface) error {
 			}
 		}
 	} else {
-		packet := ne.CreatePacket(message.Source.CID,message.Dest,message.Origin,message.MID,0,false,0,message.Data)
+		packet := ne.CreatePacket(message.Dest,message.Origin,message.MID,0,false,0,messageData)
 		ne.sendPacket(packet)
 	}
 

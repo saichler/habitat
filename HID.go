@@ -17,17 +17,16 @@ type HID struct {
 	UuidL int64
 }
 
-func NewHID(port int) *HID{
+func NewHID(ipv4 string,port int) *HID {
 	newHID := &HID{}
-	/*
-	rand.Seed(time.Now().Unix())
-	newHID.UuidMostSignificant = rand.Int63n(math.MaxInt64)
-	*/
+	ip:=GetIpAsInt32(ipv4)
 	newHID.UuidM = 0;
-	var ip int32
-	ip = GetIpAddress()
 	newHID.UuidL = int64(ip) << 32 + int64(port)
 	return newHID
+}
+
+func NewLocalHID(port int) *HID{
+	return NewHID(GetLocalIpAddress(),port)
 }
 
 func NewMulticastHID(multicastGroup uint16) *HID {
@@ -72,7 +71,7 @@ func (hid *HID) IsMulticast() bool {
 	return false
 }
 
-func GetIpAddress() int32 {
+func GetLocalIpAddress() string {
 	ifaces, err := net.Interfaces()
 	if err!=nil {
 		log.Fatal("Unable to access interfaces\n", err)
@@ -88,12 +87,11 @@ func GetIpAddress() int32 {
 			}
 
 			for _, address := range intAddresses {
-				ipaddr := address.String()
-				return GetIpAsInt32(ipaddr)
+				return address.String()
 			}
 		}
 	}
-	return 0
+	return ""
 }
 
 func GetIpAsString( ip int32) string {

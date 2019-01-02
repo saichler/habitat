@@ -72,17 +72,14 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	return in
 }
 
-func (in *Interface)CreatePacket(sourceSID uint16, dest,origin *SID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
+func (in *Interface)CreatePacket(dest,origin *SID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
 	packet := &Packet{}
 	packet.Source = in.habitat.hid
-	packet.SourceSID = sourceSID
 	if dest!=nil {
 		packet.Dest = dest.Hid
-		packet.DestSID = dest.CID
 	}
 	if origin!=nil {
 		packet.Origin = origin.Hid
-		packet.OriginSID = origin.CID
 	}
 	packet.MID = frameId
 	packet.PID = packetNumber
@@ -216,7 +213,7 @@ func (in *Interface) readNextPacket() error {
 func (in *Interface) handshake() (bool, error) {
 	log.Info("Starting handshake process for:"+in.habitat.hid.String())
 
-	packet := in.CreatePacket(0,nil,nil,0,0,false,0,HANDSHAK_DATA)
+	packet := in.CreatePacket(nil,nil,0,0,false,0,HANDSHAK_DATA)
 
 	_,err:=in.sendPacket(packet)
 	if err!=nil {

@@ -67,7 +67,7 @@ func NewHabitat(handler MessageHandler) (*Habitat, error) {
 	if e != nil {
 		return nil,e
 	} else {
-		habitat.hid = NewHID(port)
+		habitat.hid = NewLocalHID(port)
 		log.Debug("Bounded to port " + habitat.hid.String())
 		habitat.isSwitch = port==SWITCH_PORT
 		if !habitat.isSwitch {

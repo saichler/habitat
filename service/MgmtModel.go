@@ -53,9 +53,9 @@ func (hi *HabitatInfo) PutService(sid uint16,name string) {
 		hi.Services[sid]=si
 	}
 
-	//if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
+	if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
 		log.Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(sid)) + " Name:" + name + " in " + hi.hid.String())
-	//}
+	}
 
 	si.LastPing = time.Now().Unix()
 }

@@ -49,7 +49,7 @@ func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *S
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
 	source:=habitat.SID()
-	message := habitat.NewMessage(source,dest,nil,REQUEST,[]byte(str))
+	message := habitat.NewMessage(source,dest,source,REQUEST,[]byte(str))
 	habitat.Send(message)
 }
 
@@ -61,7 +61,7 @@ func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *
 		dest=NewSID(habitat.GetSwitchNID(),0)
 	}
 	source:=habitat.SID()
-	message := habitat.NewMessage(source,dest,nil,REPLY,[]byte(str))
+	message := habitat.NewMessage(source,dest,source,REPLY,[]byte(str))
 
 	habitat.Send(message)
 }
