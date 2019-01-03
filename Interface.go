@@ -10,14 +10,13 @@ import (
 )
 
 type Interface struct {
-	habitat   *Habitat
-	peerHID   *HabitatID
-	conn      net.Conn
-	external  bool
-	inbox *Inbox
+	habitat    *Habitat
+	peerHID    *HabitatID
+	conn       net.Conn
+	external   bool
+	mailbox    *Mailbox
 	statistics *InterfaceStatistics
-	isClosed bool
-	//readLock *sync.Mutex
+	isClosed   bool
 }
 
 var HANDSHAK_DATA = []byte{127,83,83,127,12,10,11}
@@ -26,9 +25,8 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	in:=&Interface{}
 	in.conn = conn
 	in.habitat = habitat
-	in.inbox = NewInbox()
+	in.mailbox = NewMailbox()
 	in.statistics = newInterfaceStatistics()
-	//in.readLock = &sync.Mutex{}
 	return in
 }
 
@@ -47,6 +45,7 @@ func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, m
 }
 
 func (in *Interface) sendData(data []byte) error {
+	start:=time.Now().UnixNano()
 	dataSize:=len(data)
 	size:=[4]byte{}
 	size[0] = byte(dataSize)
@@ -54,17 +53,17 @@ func (in *Interface) sendData(data []byte) error {
 	size[2] = byte(dataSize >> 16)
 	size[3] = byte(dataSize >> 24)
 	data = append(size[0:],data...)
-
-	/*
-	in.writeLock.Lock()
-	defer in.writeLock.Unlock()
-	*/
+	dataSize=len(data)
 
 	in.statistics.AddTxPackets(data)
 
 	n,e := in.conn.Write(data)
 
-	if e!=nil || n!=len(data){
+	end:=time.Now().UnixNano()
+
+	in.statistics.AddTxTime(end-start)
+
+	if e!=nil || n!=dataSize{
 		msg:="Failed to send data: "+e.Error()
 		log.Error(msg)
 		return errors.New(msg)
@@ -73,11 +72,13 @@ func (in *Interface) sendData(data []byte) error {
 	return nil
 }
 
-func (in *Interface) sendPacket(p *Packet) (int,error) {
+func (in *Interface) sendPacket(p *Packet) (error) {
+	start:=time.Now().UnixNano()
 	data:=p.Marshal()
-	size:=len(data)
-	in.inbox.OPush(data)
-	return size,nil
+	end:=time.Now().UnixNano()
+	in.statistics.AddTxTimeSync(end-start)
+	in.mailbox.PushOutbox(data)
+	return nil
 }
 
 func (in *Interface) read() {
@@ -96,7 +97,7 @@ func (in *Interface) read() {
 
 func (in *Interface) write() {
 	for ;in.habitat.running;{
-		data:=in.inbox.OPop().([]byte)
+		data:=in.mailbox.PopOutbox()
 		err:=in.sendData(data)
 		if err!=nil {
 			log.Error("Error Sending to socket:", err)
@@ -109,10 +110,10 @@ func (in *Interface) write() {
 func (in *Interface) handle() {
 	time.Sleep(time.Second)
 	for ;in.habitat.running;{
-		data := in.inbox.Pop().([]byte)
+		data := in.mailbox.PopInbox()
 		if data != nil {
 			in.statistics.AddRxPackets(data)
-			in.habitat.nSwitch.handlePacket(data,in.inbox)
+			in.habitat.nSwitch.handlePacket(data,in.mailbox)
 		} else {
 			break
 		}
@@ -173,7 +174,7 @@ func (in *Interface) readNextPacket() error {
 	//in.readLock.Unlock()
 
 	if in.habitat.running {
-		in.inbox.Push(data)
+		in.mailbox.PushInbox(data)
 	}
 
 	return nil
@@ -192,7 +193,7 @@ func (in *Interface) handshake() (bool, error) {
 		return false,err
 	}
 
-	data:=in.inbox.Pop().([]byte)
+	data:=in.mailbox.PopInbox()
 
 	source,dest,ba:=unmarshalPacketHeader(data)
 	p:=&Packet{}

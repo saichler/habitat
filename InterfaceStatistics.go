@@ -2,6 +2,7 @@ package habitat
 
 import (
 	"bytes"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"sync"
 )
@@ -13,7 +14,8 @@ type InterfaceStatistics struct {
 	rxPackets  int64
 	txBytes    int64
 	rxBytes    int64
-	avgSpeed   int64
+	txTime     int64
+	rxTime     int64
 	mtx  *sync.Mutex
 }
 
@@ -41,18 +43,18 @@ func (ist *InterfaceStatistics) AddTxPackets(data []byte){
 }
 
 func (ist *InterfaceStatistics) AddRxPackets(data []byte){
-	ist.mtx.Lock()
-	defer ist.mtx.Unlock()
 	ist.rxPackets++
 	ist.rxBytes+=int64(len(data))
 }
 
-func (ist *InterfaceStatistics) SetSpeed(speed int64) {
+func (ist *InterfaceStatistics) AddTxTime(t int64) {
+	ist.txTime+=t
+}
+
+func (ist *InterfaceStatistics) AddTxTimeSync(t int64) {
 	ist.mtx.Lock()
 	defer ist.mtx.Unlock()
-	if ist.avgSpeed==0 || speed<ist.avgSpeed{
-		ist.avgSpeed = speed
-	}
+	ist.txTime+=t
 }
 
 func (ist *InterfaceStatistics) String() string {
@@ -63,12 +65,19 @@ func (ist *InterfaceStatistics) String() string {
 	buff.WriteString(" Tx Packets:"+strconv.Itoa(int(ist.txPackets)))
 	buff.WriteString(" Rx Bytes:"+strconv.Itoa(int(ist.rxBytes)))
 	buff.WriteString(" Tx Bytes:"+strconv.Itoa(int(ist.txBytes)))
-	buff.WriteString(" Avg Speed:"+ist.getSpeed())
+	buff.WriteString(" Avg Tx Speed:"+ist.getTxSpeed())
 	return buff.String()
 }
 
-func (ist *InterfaceStatistics) getSpeed() string {
-	speed:=float64(ist.avgSpeed)
+func (ist *InterfaceStatistics) getTxSpeed() string {
+	timeFloat:=float64(ist.txTime/1000000000)
+	logrus.Info(strconv.FormatFloat(timeFloat, 'f', 2, 64))
+	if int64(timeFloat)==0 {
+		//not enought data
+		return "N/A"
+	}
+	speed:=float64(ist.txBytes)/timeFloat
+
 	if int64(speed)/1024==0 {
 		return strconv.Itoa(int(speed))+" Bytes/Sec"
 	}

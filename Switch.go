@@ -46,7 +46,7 @@ func (s *Switch) addInterface(in *Interface) bool {
 	return true
 }
 
-func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
+func (s *Switch) handlePacket(data []byte,inbox *Mailbox) error {
 	source,dest,ba:=unmarshalPacketHeader(data)
 	if dest.IsPublish() {
 		s.handleMulticast(source,dest,data,ba,inbox)
@@ -54,23 +54,23 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 		s.handleMyPacket(source,dest,data,ba,inbox)
 	} else {
 		in:=s.getInterface(dest)
-		in.inbox.OPush(data)
+		in.mailbox.PushOutbox(data)
 	}
 	return nil
 }
 
-func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlice, inbox *Inbox){
+func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlice, inbox *Mailbox){
 	if s.habitat.isSwitch {
 		all:=s.getAllInternal()
 		for k,v:=range all {
 			if !k.Equal(source) {
-				v.inbox.OPush(data)
+				v.mailbox.PushOutbox(data)
 			}
 		}
 		if source.sameMachine(s.habitat.hid) {
 			all:=s.getAllExternal()
 			for _,v:=range all {
-				v.inbox.OPush(data)
+				v.mailbox.PushOutbox(data)
 			}
 		}
 	}
@@ -78,7 +78,7 @@ func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlic
 	s.handleMyPacket(source,dest,data,ba,inbox)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Inbox){
+func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Mailbox){
 	message := Message{}
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)

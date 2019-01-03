@@ -4,7 +4,6 @@ import (
 	. "github.com/saichler/utils/golang"
 	"github.com/sirupsen/logrus"
 	"strconv"
-	"time"
 )
 
 
@@ -22,7 +21,7 @@ type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
 }
 
-func (message *Message) Decode (packet *Packet, inbox *Inbox){
+func (message *Message) Decode (packet *Packet, inbox *Mailbox){
 	if packet.M {
 		message.Data,message.Complete=inbox.addPacket(packet)
 	} else {
@@ -63,8 +62,6 @@ func (message *Message) Send(ne *Interface) error {
 	messageData:=message.Marshal()
 
 	if len(messageData)> MTU {
-		speedStart:=time.Now().Unix()
-		bytesSent:=0
 
 		totalParts := len(messageData)/MTU
 		left := len(messageData) - totalParts*MTU
@@ -84,12 +81,10 @@ func (message *Message) Send(ne *Interface) error {
 		ba.AddUInt32(uint32(len(messageData)))
 
 		packet := ne.CreatePacket(message.Dest,message.MID,0,true,0,ba.Data())
-		bs,err:=ne.sendPacket(packet)
+		err:=ne.sendPacket(packet)
 		if err!=nil {
 			return err
 		}
-
-		bytesSent+=bs
 
 		for i:=0;i<totalParts-1;i++ {
 			loc := i*MTU
@@ -104,21 +99,11 @@ func (message *Message) Send(ne *Interface) error {
 			if i%1000==0 {
 				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
-			bs,err = ne.sendPacket(packet)
+			err = ne.sendPacket(packet)
 			if err!=nil {
 				logrus.Error("Was able to send only"+strconv.Itoa(i)+" packets")
 				break
 			}
-			bytesSent+=bs
-		}
-
-		speedEnd:=time.Now().Unix()
-		t:=speedEnd-speedStart
-		logrus.Info("Took="+strconv.Itoa(int(t))+" Seconds")
-		if t>0 {
-			s := float64(bytesSent)
-			speed := int64(s / float64(t))
-			ne.statistics.SetSpeed(speed)
 		}
 	} else {
 		packet := ne.CreatePacket(message.Dest,message.MID,0,false,0,messageData)
