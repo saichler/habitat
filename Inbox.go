@@ -86,7 +86,7 @@ func (inbox *Inbox) addPacket(packet *Packet) ([]byte, bool) {
 	mp.mtx.Lock()
 	mp.packets = append(mp.packets,packet)
 	if mp.totalExpectedPackets == 0 && packet.PID == 0 {
-		ba := NewByteArrayWithData(packet.Data,0)
+		ba := NewByteSliceWithData(packet.Data,0)
 		mp.totalExpectedPackets = ba.GetUInt32()
 		mp.byteLength = ba.GetUInt32()
 	}

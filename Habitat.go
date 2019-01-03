@@ -17,7 +17,7 @@ const (
 
 var MTU 		= 512
 var KEY         = "bNhDNirkahDbiJJirSfaNNEXDprtwQoK"
-var ENCRYPTED   = true
+var ENCRYPTED   = false
 
 type Habitat struct {
 	hid            *HabitatID
@@ -275,6 +275,9 @@ func decrypt(data []byte) []byte {
 		} else {
 			return decryData
 		}
+	} else {
+		result:=make([]byte,len(data))
+		copy(result,data)
+		return result
 	}
-	return data
 }

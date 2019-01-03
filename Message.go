@@ -31,14 +31,14 @@ func (message *Message) Decode (packet *Packet, inbox *Inbox){
 	}
 
 	if message.Complete {
-		message.Unmarshal(packet)
+		message.Unmarshal(packet.Source,packet.Dest)
 	}
 }
 
-func (message *Message) Unmarshal(p *Packet) {
-	ba:=NewByteArrayWithData(message.Data,0)
-	message.Source = NewServiceID(p.Source,ba.GetUInt16(),ba.GetString())
-	message.Dest = NewServiceID(p.Dest,ba.GetUInt16(),ba.GetString())
+func (message *Message) Unmarshal(source,dest *HabitatID) {
+	ba:= NewByteSliceWithData(message.Data,0)
+	message.Source = NewServiceID(source,ba.GetUInt16(),ba.GetString())
+	message.Dest = NewServiceID(dest,ba.GetUInt16(),ba.GetString())
 	message.Origin = &ServiceID{}
 	message.Origin.Unmarshal(ba)
 	message.Type = ba.GetUInt16()
@@ -46,21 +46,21 @@ func (message *Message) Unmarshal(p *Packet) {
 }
 
 func (message *Message) Marshal() []byte {
-	ba:=NewByteArray()
+	ba:= NewByteSlice()
 	ba.AddUInt16(message.Source.cid)
 	ba.AddString(message.Source.topic)
 	ba.AddUInt16(message.Dest.cid)
 	ba.AddString(message.Dest.topic)
-	message.Origin.Marshal(ba)
+	baa:=NewByteArray()
+	message.Origin.Marshal(baa)
+	ba.Add(baa.Data())
 	ba.AddUInt16(message.Type)
 	ba.AddByteArray(message.Data)
 	return ba.Data()
 }
 
 func (message *Message) Send(ne *Interface) error {
-	ne.statistics.mtx.Lock()
-	ne.statistics.TxMessages++
-	ne.statistics.mtx.Unlock()
+	ne.statistics.AddTxMessages()
 
 	messageData:=message.Marshal()
 
@@ -81,7 +81,7 @@ func (message *Message) Send(ne *Interface) error {
 			logrus.Info("Large Message, total parts:"+strconv.Itoa(totalParts))
 		}
 
-		ba := ByteArray{}
+		ba := ByteSlice{}
 		ba.AddUInt32(uint32(totalParts))
 		ba.AddUInt32(uint32(len(messageData)))
 
@@ -119,9 +119,7 @@ func (message *Message) Send(ne *Interface) error {
 		if t>0 {
 			s := float64(bytesSent)
 			speed := int64(s / float64(t))
-			if ne.statistics.AvgSpeed==0 || speed<ne.statistics.AvgSpeed{
-				ne.statistics.AvgSpeed = speed
-			}
+			ne.statistics.SetSpeed(speed)
 		}
 	} else {
 		packet := ne.CreatePacket(message.Dest,message.MID,0,false,0,messageData)

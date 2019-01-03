@@ -1,7 +1,6 @@
 package habitat
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	log "github.com/sirupsen/logrus"
@@ -16,59 +15,21 @@ type Interface struct {
 	peerHID   *HabitatID
 	conn      net.Conn
 	external  bool
-	readLock  sync.Mutex
-	writeLock sync.Mutex
 	inbox *Inbox
 	statistics *InterfaceStatistics
 	isClosed bool
-}
-
-type InterfaceStatistics struct {
-	TxMessages int64
-	RxMessages int64
-	TxPackets  int64
-	RxPackets  int64
-	TxBytes    int64
-	RxBytes    int64
-	AvgSpeed   int64
-	mtx *sync.Mutex
+	readLock *sync.Mutex
 }
 
 var HANDSHAK_DATA = []byte{127,83,83,127,12,10,11}
-
-func (ist *InterfaceStatistics) String() string {
-	buff:=&bytes.Buffer{}
-	buff.WriteString("Rx Messages:"+strconv.Itoa(int(ist.RxMessages)))
-	buff.WriteString(" Tx Messages:"+strconv.Itoa(int(ist.TxMessages)))
-	buff.WriteString(" Rx Packets:"+strconv.Itoa(int(ist.RxPackets)))
-	buff.WriteString(" Tx Packets:"+strconv.Itoa(int(ist.TxPackets)))
-	buff.WriteString(" Rx Bytes:"+strconv.Itoa(int(ist.RxBytes)))
-	buff.WriteString(" Tx Bytes:"+strconv.Itoa(int(ist.TxBytes)))
-	buff.WriteString(" Avg Speed:"+ist.getSpeed())
-	return buff.String()
-}
-
-func (ist *InterfaceStatistics) getSpeed() string {
-	speed:=float64(ist.AvgSpeed)
-	if int64(speed)/1024==0 {
-		return strconv.Itoa(int(speed))+" Bytes/Sec"
-	}
-	speed=speed/1024
-	if int64(speed)/1024==0 {
-		return strconv.Itoa(int(speed))+" Kilo Bytes/Sec"
-	}
-	speed=speed/1024
-	s:=strconv.FormatFloat(speed, 'f', 2, 64)
-	return s+" Mega Bytes/Sec"
-}
 
 func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	in:=&Interface{}
 	in.conn = conn
 	in.habitat = habitat
 	in.inbox = NewInbox()
-	in.statistics = &InterfaceStatistics{}
-	in.statistics.mtx = &sync.Mutex{}
+	in.statistics = newInterfaceStatistics()
+	in.readLock = &sync.Mutex{}
 	return in
 }
 
@@ -86,12 +47,16 @@ func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, m
 	return packet
 }
 
+func (in *Interface) sendDataSync(data []byte) error {
+	mbaMtx.Lock()
+	defer mbaMtx.Unlock()
+	return in.sendData(data)
+}
+
 func (in *Interface) sendData(data []byte) error {
+	in.statistics.AddTxPackets(data)
 	size := make([]byte, 4)
 	binary.LittleEndian.PutUint32(size, uint32(len(data)))
-
-	in.writeLock.Lock()
-	defer in.writeLock.Unlock()
 
 	size = append(size,data...)
 
@@ -111,12 +76,10 @@ func (in *Interface) sendData(data []byte) error {
 }
 
 func (in *Interface) sendPacket(p *Packet) (int,error) {
+	mbaMtx.Lock()
+	defer mbaMtx.Unlock()
 	data:=p.Marshal()
-	in.statistics.mtx.Lock()
-	in.statistics.TxPackets++
-	size:=len(data)+4
-	in.statistics.TxBytes+=int64(size)
-	in.statistics.mtx.Unlock()
+	size:=len(data)
 	return size,in.sendData(data)
 }
 
@@ -139,6 +102,7 @@ func (in *Interface) handle() {
 	for ;in.habitat.running;{
 		data := in.inbox.Pop().([]byte)
 		if data != nil {
+			in.statistics.AddRxPackets(data)
 			in.habitat.nSwitch.handlePacket(data,in.inbox)
 		} else {
 			break
@@ -181,7 +145,6 @@ func (in *Interface) readBytes(size int) ([]byte, error) {
 
 
 func (in *Interface) readNextPacket() error {
-
 	in.readLock.Lock()
 	pSize,e := in.readBytes(4)
 	if pSize==nil || e!=nil {
@@ -197,10 +160,6 @@ func (in *Interface) readNextPacket() error {
 	in.readLock.Unlock()
 
 	if in.habitat.running {
-		in.statistics.mtx.Lock()
-		in.statistics.RxPackets++
-		in.statistics.RxBytes+=int64(len(data))
-		in.statistics.mtx.Unlock()
 		in.inbox.Push(data)
 	}
 
@@ -223,6 +182,7 @@ func (in *Interface) handshake() (bool, error) {
 	}
 
 	data:=in.inbox.Pop().([]byte)
+
 	source,dest,ba:=unmarshalPacketHeader(data)
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)

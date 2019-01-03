@@ -1,6 +1,9 @@
 package habitat
 
-import . "github.com/saichler/utils/golang"
+import (
+	. "github.com/saichler/utils/golang"
+	"sync"
+)
 
 type Packet struct {
 	Source *HabitatID
@@ -12,16 +15,19 @@ type Packet struct {
 	Data []byte
 }
 
+var mba = NewByteArray()
+var mbaMtx = &sync.Mutex{}
+
 func (p *Packet) Marshal() []byte {
-	ba:=NewByteArray()
-	p.Source.Marshal(ba)
-	p.Dest.Marshal(ba)
-	ba.AddUInt32(p.MID)
-	ba.AddUInt32(p.PID)
-	ba.AddBool(p.M)
-	ba.AddUInt16(p.P)
-	ba.AddByteArray(encrypt(p.Data))
-	return ba.Data()
+	mba.Reset()
+	p.Source.Marshal(mba)
+	p.Dest.Marshal(mba)
+	mba.AddUInt32(p.MID)
+	mba.AddUInt32(p.PID)
+	mba.AddBool(p.M)
+	mba.AddUInt16(p.P)
+	mba.AddByteArray(encrypt(p.Data))
+	return mba.Data()
 }
 
 func unmarshalPacketHeader(data []byte) (*HabitatID,*HabitatID,*ByteArray) {

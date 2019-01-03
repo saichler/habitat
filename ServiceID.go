@@ -26,9 +26,10 @@ func (sid *ServiceID) Marshal(ba *ByteArray) {
 	ba.AddString(sid.topic)
 }
 
-func (sid *ServiceID) Unmarshal(ba *ByteArray) {
+func (sid *ServiceID) Unmarshal(ba *ByteSlice) {
 	sid.hid = &HabitatID{}
-	sid.hid.Unmarshal(ba)
+	sid.hid.UuidM = ba.GetInt64()
+	sid.hid.UuidL = ba.GetInt64()
 	sid.cid = ba.GetUInt16()
 	sid.topic = ba.GetString()
 }
