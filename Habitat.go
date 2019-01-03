@@ -17,7 +17,7 @@ const (
 
 var MTU 		= 512
 var KEY         = "bNhDNirkahDbiJJirSfaNNEXDprtwQoK"
-var ENCRYPTED   = false
+var ENCRYPTED   = true
 
 type Habitat struct {
 	hid            *HabitatID

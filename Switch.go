@@ -54,7 +54,7 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 		s.handleMyPacket(source,dest,data,ba,inbox)
 	} else {
 		in:=s.getInterface(dest)
-		in.sendData(data)
+		in.inbox.OPush(data)
 	}
 	return nil
 }
@@ -64,13 +64,13 @@ func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlic
 		all:=s.getAllInternal()
 		for k,v:=range all {
 			if !k.Equal(source) {
-				v.sendData(data)
+				v.inbox.OPush(data)
 			}
 		}
 		if source.sameMachine(s.habitat.hid) {
 			all:=s.getAllExternal()
 			for _,v:=range all {
-				v.sendData(data)
+				v.inbox.OPush(data)
 			}
 		}
 	}

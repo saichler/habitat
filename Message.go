@@ -84,7 +84,7 @@ func (message *Message) Send(ne *Interface) error {
 		ba.AddUInt32(uint32(len(messageData)))
 
 		packet := ne.CreatePacket(message.Dest,message.MID,0,true,0,ba.Data())
-		bs,err:=ne.sendPacketL(packet)
+		bs,err:=ne.sendPacket(packet)
 		if err!=nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (message *Message) Send(ne *Interface) error {
 			if i%1000==0 {
 				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
-			bs,err = ne.sendPacketL(packet)
+			bs,err = ne.sendPacket(packet)
 			if err!=nil {
 				logrus.Error("Was able to send only"+strconv.Itoa(i)+" packets")
 				break

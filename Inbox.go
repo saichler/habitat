@@ -8,6 +8,7 @@ import (
 type Inbox struct {
 	pending *ConcurrentMap
 	inQueue     *Queue
+	outQueue    *Queue
 }
 
 type SourceMultiPart struct {
@@ -26,6 +27,7 @@ type MultiPart struct {
 func NewInbox() *Inbox {
 	inbox:=&Inbox{}
 	inbox.inQueue = NewQueue()
+	inbox.outQueue = NewQueue()
 	inbox.pending = NewConcurrentMap()
 	return inbox
 }
@@ -40,8 +42,16 @@ func (inbox *Inbox) Pop() interface{} {
 	return inbox.inQueue.Pop()
 }
 
+func (inbox *Inbox) OPop() interface{} {
+	return inbox.outQueue.Pop()
+}
+
 func (inbox *Inbox) Push(any interface{}) {
 	inbox.inQueue.Push(any)
+}
+
+func (inbox *Inbox) OPush(any interface{}) {
+	inbox.outQueue.Push(any)
 }
 
 func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {
