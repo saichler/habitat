@@ -268,16 +268,13 @@ func encrypt(data []byte) ([]byte) {
 
 func decrypt(data []byte) []byte {
 	if ENCRYPTED {
-		decryData,err:=security.Decode(data,KEY)
-		if err!=nil {
+		decryData, err := security.Decode(data, KEY)
+		if err != nil {
 			panic("Failed to decrypt data!")
 			return data
 		} else {
 			return decryData
 		}
-	} else {
-		result:=make([]byte,len(data))
-		copy(result,data)
-		return result
 	}
+	return data
 }

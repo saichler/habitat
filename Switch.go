@@ -54,23 +54,23 @@ func (s *Switch) handlePacket(data []byte,inbox *Inbox) error {
 		s.handleMyPacket(source,dest,data,ba,inbox)
 	} else {
 		in:=s.getInterface(dest)
-		in.sendDataSync(data)
+		in.sendData(data)
 	}
 	return nil
 }
 
-func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteArray, inbox *Inbox){
+func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlice, inbox *Inbox){
 	if s.habitat.isSwitch {
 		all:=s.getAllInternal()
 		for k,v:=range all {
 			if !k.Equal(source) {
-				v.sendDataSync(data)
+				v.sendData(data)
 			}
 		}
 		if source.sameMachine(s.habitat.hid) {
 			all:=s.getAllExternal()
 			for _,v:=range all {
-				v.sendDataSync(data)
+				v.sendData(data)
 			}
 		}
 	}
@@ -78,7 +78,7 @@ func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteArra
 	s.handleMyPacket(source,dest,data,ba,inbox)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteArray, inbox *Inbox){
+func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Inbox){
 	message := Message{}
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)

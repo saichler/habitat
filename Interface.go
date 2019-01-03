@@ -19,6 +19,7 @@ type Interface struct {
 	statistics *InterfaceStatistics
 	isClosed bool
 	readLock *sync.Mutex
+	writeLock *sync.Mutex
 }
 
 var HANDSHAK_DATA = []byte{127,83,83,127,12,10,11}
@@ -30,6 +31,7 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	in.inbox = NewInbox()
 	in.statistics = newInterfaceStatistics()
 	in.readLock = &sync.Mutex{}
+	in.writeLock = &sync.Mutex{}
 	return in
 }
 
@@ -47,40 +49,71 @@ func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, m
 	return packet
 }
 
-func (in *Interface) sendDataSync(data []byte) error {
-	mbaMtx.Lock()
-	defer mbaMtx.Unlock()
-	return in.sendData(data)
+func (in *Interface) sendDataL(data []byte) error {
+
+	dataSize:=len(data)
+	size:=[4]byte{}
+	size[0] = byte(dataSize)
+	size[1] = byte(dataSize >> 8)
+	size[2] = byte(dataSize >> 16)
+	size[3] = byte(dataSize >> 24)
+	data = append(size[0:],data...)
+
+	/*
+	in.writeLock.Lock()
+	defer in.writeLock.Unlock()
+	*/
+
+	in.statistics.AddTxPackets(data)
+
+	n,e := in.conn.Write(data)
+
+	if e!=nil || n!=len(data){
+		msg:="Failed to send data: "+e.Error()
+		log.Error(msg)
+		return errors.New(msg)
+	}
+
+	return nil
 }
 
 func (in *Interface) sendData(data []byte) error {
+	dataSize:=len(data)
+	size:=[4]byte{}
+	size[0] = byte(dataSize)
+	size[1] = byte(dataSize >> 8)
+	size[2] = byte(dataSize >> 16)
+	size[3] = byte(dataSize >> 24)
+	data = append(size[0:],data...)
+
+	/*
+	in.writeLock.Lock()
+	defer in.writeLock.Unlock()
+	*/
+
 	in.statistics.AddTxPackets(data)
-	size := make([]byte, 4)
-	binary.LittleEndian.PutUint32(size, uint32(len(data)))
 
-	size = append(size,data...)
+	n,e := in.conn.Write(data)
 
-	n,e := in.conn.Write(size)
-
-	if e!=nil || n!=len(size){
-		log.Error("Failed to send data:",e)
-		panic("")
-		return e
+	if e!=nil || n!=len(data){
+		msg:="Failed to send data: "+e.Error()
+		log.Error(msg)
+		return errors.New(msg)
 	}
 
-	if n!=len(size){
-		log.Info("Did not send all, send only "+strconv.Itoa(n)+ "out of "+strconv.Itoa(len(size)))
-		time.Sleep(time.Millisecond*100)
-	}
 	return nil
 }
 
 func (in *Interface) sendPacket(p *Packet) (int,error) {
-	mbaMtx.Lock()
-	defer mbaMtx.Unlock()
 	data:=p.Marshal()
 	size:=len(data)
 	return size,in.sendData(data)
+}
+
+func (in *Interface) sendPacketL(p *Packet) (int,error) {
+	data:=p.Marshal()
+	size:=len(data)
+	return size,in.sendDataL(data)
 }
 
 func (in *Interface) read() {
@@ -128,10 +161,10 @@ func (in *Interface) readBytes(size int) ([]byte, error) {
 	}
 
 	if n<size {
-		if n==0 {
+		//if n==0 {
 			log.Warn("Expected " + strconv.Itoa(size) + " bytes but only read 0, Sleeping a second...")
 			time.Sleep(time.Second)
-		}
+		//}
 		data=data[0:n]
 		left,e:=in.readBytes(size-n)
 		if e!=nil {
@@ -148,6 +181,7 @@ func (in *Interface) readNextPacket() error {
 	in.readLock.Lock()
 	pSize,e := in.readBytes(4)
 	if pSize==nil || e!=nil {
+		in.readLock.Unlock()
 		return e
 	}
 
@@ -155,8 +189,10 @@ func (in *Interface) readNextPacket() error {
 
 	data,e := in.readBytes(size)
 	if data==nil || e!=nil {
+		in.readLock.Unlock()
 		return e
 	}
+
 	in.readLock.Unlock()
 
 	if in.habitat.running {

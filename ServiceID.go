@@ -20,7 +20,7 @@ func NewServiceID(hid *HabitatID,componentId uint16,topic string) *ServiceID {
 	return sid
 }
 
-func (sid *ServiceID) Marshal(ba *ByteArray) {
+func (sid *ServiceID) Marshal(ba *ByteSlice) {
 	sid.hid.Marshal(ba)
 	ba.AddUInt16(sid.cid)
 	ba.AddString(sid.topic)

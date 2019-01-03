@@ -182,7 +182,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 		go sendScale(h, habitats[i], habitats[i+1], numOfMessages)
 	}
 
-	time.Sleep(time.Second*7)
+	time.Sleep(time.Second*10)
 
 	if h.replyCount!=numOfMessages*(numOfHabitats-2) {
 		t.Fail()

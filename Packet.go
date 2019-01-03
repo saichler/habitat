@@ -2,7 +2,6 @@ package habitat
 
 import (
 	. "github.com/saichler/utils/golang"
-	"sync"
 )
 
 type Packet struct {
@@ -15,23 +14,20 @@ type Packet struct {
 	Data []byte
 }
 
-var mba = NewByteArray()
-var mbaMtx = &sync.Mutex{}
-
 func (p *Packet) Marshal() []byte {
-	mba.Reset()
-	p.Source.Marshal(mba)
-	p.Dest.Marshal(mba)
-	mba.AddUInt32(p.MID)
-	mba.AddUInt32(p.PID)
-	mba.AddBool(p.M)
-	mba.AddUInt16(p.P)
-	mba.AddByteArray(encrypt(p.Data))
-	return mba.Data()
+	bs :=NewByteSlice()
+	p.Source.Marshal(bs)
+	p.Dest.Marshal(bs)
+	bs.AddUInt32(p.MID)
+	bs.AddUInt32(p.PID)
+	bs.AddBool(p.M)
+	bs.AddUInt16(p.P)
+	bs.AddByteSlice(encrypt(p.Data))
+	return bs.Data()
 }
 
-func unmarshalPacketHeader(data []byte) (*HabitatID,*HabitatID,*ByteArray) {
-	ba:=NewByteArrayWithData(data,0)
+func unmarshalPacketHeader(data []byte) (*HabitatID,*HabitatID,*ByteSlice) {
+	ba:=NewByteSliceWithData(data,0)
 	source:=&HabitatID{}
 	dest:=&HabitatID{}
 	source.Unmarshal(ba)
@@ -39,12 +35,12 @@ func unmarshalPacketHeader(data []byte) (*HabitatID,*HabitatID,*ByteArray) {
 	return source,dest,ba
 }
 
-func (p *Packet) UnmarshalAll(source,dest *HabitatID,ba *ByteArray) {
+func (p *Packet) UnmarshalAll(source,dest *HabitatID,ba *ByteSlice) {
 	p.Source = source
 	p.Dest = dest
 	p.MID =ba.GetUInt32()
 	p.PID=ba.GetUInt32()
 	p.M=ba.GetBool()
 	p.P=ba.GetUInt16()
-	p.Data=decrypt(ba.GetByteArray())
+	p.Data=decrypt(ba.GetByteSlice())
 }

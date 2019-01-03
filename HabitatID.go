@@ -39,7 +39,7 @@ func newPublishHabitatID() *HabitatID {
 	return newHID
 }
 
-func (hid *HabitatID) Marshal(ba *ByteArray){
+func (hid *HabitatID) Marshal(ba *ByteSlice){
 	if hid!=nil {
 		ba.AddInt64(hid.UuidM)
 		ba.AddInt64(hid.UuidL)
@@ -49,7 +49,7 @@ func (hid *HabitatID) Marshal(ba *ByteArray){
 	}
 }
 
-func (hid *HabitatID) Unmarshal(ba *ByteArray) {
+func (hid *HabitatID) Unmarshal(ba *ByteSlice) {
 	hid.UuidM=ba.GetInt64()
 	hid.UuidL=ba.GetInt64()
 }

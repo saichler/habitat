@@ -36,8 +36,6 @@ func (ist *InterfaceStatistics) AddRxMessages(){
 }
 
 func (ist *InterfaceStatistics) AddTxPackets(data []byte){
-	ist.mtx.Lock()
-	defer ist.mtx.Unlock()
 	ist.txPackets++
 	ist.txBytes+=int64(len(data))
 }

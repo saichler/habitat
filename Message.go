@@ -42,7 +42,7 @@ func (message *Message) Unmarshal(source,dest *HabitatID) {
 	message.Origin = &ServiceID{}
 	message.Origin.Unmarshal(ba)
 	message.Type = ba.GetUInt16()
-	message.Data = ba.GetByteArray()
+	message.Data = ba.GetByteSlice()
 }
 
 func (message *Message) Marshal() []byte {
@@ -51,11 +51,9 @@ func (message *Message) Marshal() []byte {
 	ba.AddString(message.Source.topic)
 	ba.AddUInt16(message.Dest.cid)
 	ba.AddString(message.Dest.topic)
-	baa:=NewByteArray()
-	message.Origin.Marshal(baa)
-	ba.Add(baa.Data())
+	message.Origin.Marshal(ba)
 	ba.AddUInt16(message.Type)
-	ba.AddByteArray(message.Data)
+	ba.AddByteSlice(message.Data)
 	return ba.Data()
 }
 
@@ -86,7 +84,7 @@ func (message *Message) Send(ne *Interface) error {
 		ba.AddUInt32(uint32(len(messageData)))
 
 		packet := ne.CreatePacket(message.Dest,message.MID,0,true,0,ba.Data())
-		bs,err:=ne.sendPacket(packet)
+		bs,err:=ne.sendPacketL(packet)
 		if err!=nil {
 			return err
 		}
@@ -106,7 +104,7 @@ func (message *Message) Send(ne *Interface) error {
 			if i%1000==0 {
 				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
-			bs,err = ne.sendPacket(packet)
+			bs,err = ne.sendPacketL(packet)
 			if err!=nil {
 				logrus.Error("Was able to send only"+strconv.Itoa(i)+" packets")
 				break
@@ -116,6 +114,7 @@ func (message *Message) Send(ne *Interface) error {
 
 		speedEnd:=time.Now().Unix()
 		t:=speedEnd-speedStart
+		logrus.Info("Took="+strconv.Itoa(int(t))+" Seconds")
 		if t>0 {
 			s := float64(bytesSent)
 			speed := int64(s / float64(t))
