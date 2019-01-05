@@ -36,3 +36,7 @@ func (s *MgmtService) ServiceMessageHandlers()[]ServiceMessageHandler {
 		&StartMgmtHandler{},
 		&ServicePingHandler{}}
 }
+
+func (s *MgmtService) UnreachableMessageHandlers()[]ServiceMessageHandler {
+	return s.ServiceMessageHandlers()
+}

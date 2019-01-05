@@ -14,6 +14,7 @@ type Message struct {
 	Type     uint16
 	Data     []byte
 	Complete bool
+	Unreachable bool
 }
 
 type MessageHandler interface {

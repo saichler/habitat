@@ -20,6 +20,7 @@ type ServiceManager struct {
 type ServiceHabitat struct {
 	serviceManager *ServiceManager
 	serviceHandlers map[uint16]ServiceMessageHandler
+	unreachableHandlers map[uint16]ServiceMessageHandler
 	service Service
 	inbox *Queue
 }
@@ -100,6 +101,11 @@ func (sm *ServiceManager) AddService(service Service){
 	for _,v:=range service.ServiceMessageHandlers() {
 		sh.serviceHandlers[v.Type()]=v
 	}
+	sh.unreachableHandlers = make(map[uint16]ServiceMessageHandler)
+	for _,v:=range service.UnreachableMessageHandlers() {
+		sh.unreachableHandlers[v.Type()]=v
+	}
+
 	sm.lock.L.Lock()
 	sm.services[service.ServiceID().ComponentID()]=sh
 	sm.lock.L.Unlock()
@@ -197,11 +203,21 @@ func(sm *ServiceManager) CreateAndSend(s Service,dest *ServiceID,ptype uint16,da
 func (sh *ServiceHabitat) processNextMessage() {
 	for ;sh.serviceManager.habitat.Running(); {
 		message := sh.inbox.Pop().(*Message)
-		msgHandler:=sh.serviceHandlers[message.Type]
-		if msgHandler==nil {
-			Error("There is no service message handler for message type:"+strconv.Itoa(int(message.Type)))
-		}else {
-			msgHandler.HandleMessage(sh.serviceManager,sh.service, message)
+		if message.Unreachable {
+			msgHandler := sh.unreachableHandlers[message.Type]
+			if msgHandler == nil {
+				Error("There is no service message unreachable handler for message type:" + strconv.Itoa(int(message.Type)))
+			} else {
+				message.Unreachable = true
+				msgHandler.HandleMessage(sh.serviceManager, sh.service, message)
+			}
+		} else {
+			msgHandler := sh.serviceHandlers[message.Type]
+			if msgHandler == nil {
+				Error("There is no service message handler for message type:" + strconv.Itoa(int(message.Type)))
+			} else {
+				msgHandler.HandleMessage(sh.serviceManager, sh.service, message)
+			}
 		}
 	}
 	Info("Service "+sh.service.Name()+" has shutdown")

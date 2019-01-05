@@ -12,6 +12,7 @@ type Service interface {
 	ServiceManager() *ServiceManager
 	Init(*ServiceManager,uint16)
 	ServiceMessageHandlers()[]ServiceMessageHandler
+	UnreachableMessageHandlers()[]ServiceMessageHandler
 }
 
 type ServiceMessageHandler interface {
