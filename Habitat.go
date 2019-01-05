@@ -2,8 +2,8 @@ package habitat
 
 import (
 	"errors"
-	"github.com/saichler/security"
-	log "github.com/sirupsen/logrus"
+	. "github.com/saichler/security"
+	."github.com/saichler/utils/golang"
 	"net"
 	"strconv"
 	"sync"
@@ -34,12 +34,12 @@ type Habitat struct {
 func bind() (net.Listener,int,error){
 	port := SWITCH_PORT
 
-	log.Debug("Trying to bind to switch port " + strconv.Itoa(port) + ".");
+	Debug("Trying to bind to switch port " + strconv.Itoa(port) + ".");
 	socket, e := net.Listen("tcp", ":"+strconv.Itoa(port))
 
 	if e != nil {
 		for ; port < MAX_PORT && e != nil; port++ {
-			log.Debug("Trying to bind to port " + strconv.Itoa(port) + ".")
+			Debug("Trying to bind to port " + strconv.Itoa(port) + ".")
 			s, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 			e = err
 			socket = s
@@ -47,7 +47,7 @@ func bind() (net.Listener,int,error){
 				break
 			}
 		}
-		log.Debug("Successfuly binded to port " + strconv.Itoa(port))
+		Debug("Successfuly binded to port " + strconv.Itoa(port))
 	}
 
 	if port >= MAX_PORT {
@@ -68,7 +68,7 @@ func NewHabitat(handler MessageHandler) (*Habitat, error) {
 		return nil,e
 	} else {
 		habitat.hid = NewLocalHID(port)
-		log.Debug("Bounded to port " + habitat.hid.String())
+		Debug("Bounded to port " + habitat.hid.String())
 		habitat.isSwitch = port==SWITCH_PORT
 		if !habitat.isSwitch {
 			e:=habitat.uplinkToSwitch()
@@ -101,7 +101,7 @@ func (habitat *Habitat) start() {
 
 func (habitat *Habitat) waitForlinks() {
 	if habitat.running {
-		log.Info("Habitat ", habitat.hid.String(), " is waiting for links")
+		Info("Habitat ", habitat.hid.String(), " is waiting for links")
 	}
 	for ;habitat.running;{
 		connection, error := habitat.netListener.Accept()
@@ -109,22 +109,22 @@ func (habitat *Habitat) waitForlinks() {
 			break
 		}
 		if error != nil {
-			log.Fatal("Failed to accept a new connection from socket: ", error)
+			Fatal("Failed to accept a new connection from socket: ", error)
 			return
 		}
 		//add a new interface
 		go habitat.addInterface(connection)
 	}
 	habitat.netListener.Close()
-	log.Info("Habitat:"+habitat.hid.String()+" was shutdown!")
+	Info("Habitat:"+habitat.hid.String()+" was shutdown!")
 }
 
 func (habitat *Habitat) addInterface(c net.Conn) (*HabitatID,error) {
-	log.Debug("connecting to: " + c.RemoteAddr().String())
+	Debug("connecting to: " + c.RemoteAddr().String())
 	in:= newInterface(c, habitat)
 	added,e:=in.handshake()
 	if e!=nil {
-		log.Error("Failed to add interface:",e)
+		Error("Failed to add interface:",e)
 	}
 
 	if e!=nil || !added {
@@ -140,7 +140,7 @@ func (habitat *Habitat) uplinkToSwitch() error {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", "127.0.0.1:"+switchPortString)
 	if e != nil {
-		log.Error("Failed to open connection to switch: ", e)
+		Error("Failed to open connection to switch: ", e)
 		return e
 	}
 	go habitat.addInterface(c)
@@ -151,7 +151,7 @@ func (habitat *Habitat) Uplink(host string) *HabitatID {
 	switchPortString := strconv.Itoa(SWITCH_PORT)
 	c, e := net.Dial("tcp", host+":"+switchPortString)
 	if e != nil {
-		log.Error("Failed to open connection to host: "+host, e)
+		Error("Failed to open connection to host: "+host, e)
 	}
 	hid,err:=habitat.addInterface(c)
 	if err!=nil {
@@ -165,7 +165,7 @@ func (habitat *Habitat) waitForUplinkToSwitch() *Interface {
 	defer habitat.lock.L.Unlock()
 	ne := habitat.nSwitch.getInterface(habitat.switchHID)
 	if ne==nil || ne.isClosed {
-		log.Error("Uplink to switch is closed, trying to open a new one.")
+		Error("Uplink to switch is closed, trying to open a new one.")
 		e := habitat.uplinkToSwitch()
 		for ; e != nil; {
 			time.Sleep(time.Second * 5)
@@ -195,18 +195,18 @@ func (habitat *Habitat) Send(message *Message) error {
 			}
 			e = message.Send(ne)
 			if e != nil {
-				log.Error("Failed to send multicast message:", e)
+				Error("Failed to send multicast message:", e)
 			}
 		}
 	} else {
 		ne := habitat.nSwitch.getInterface(message.Dest.hid)
 		if ne==nil {
-			log.Error("Unknown Destination:"+message.Dest.String())
+			Error("Unknown Destination:"+message.Dest.String())
 			return errors.New("Unknown Destination:"+message.Dest.String())
 		}
 		e = message.Send(ne)
 		if e != nil {
-			log.Error("Failed to send message:", e)
+			Error("Failed to send message:", e)
 		}
 	}
 	return e
@@ -255,9 +255,9 @@ func (habitat *Habitat) Running() bool {
 
 func encrypt(data []byte) ([]byte) {
 	if ENCRYPTED {
-		encData, err := security.Encode(data, KEY)
+		encData, err := Encode(data, KEY)
 		if err != nil {
-			log.Error("Failed to encrypt data, sending unsecure!", err)
+			Error("Failed to encrypt data, sending unsecure!", err)
 			return data
 		} else {
 			return encData
@@ -268,7 +268,7 @@ func encrypt(data []byte) ([]byte) {
 
 func decrypt(data []byte) []byte {
 	if ENCRYPTED {
-		decryData, err := security.Decode(data, KEY)
+		decryData, err := Decode(data, KEY)
 		if err != nil {
 			panic("Failed to decrypt data!")
 			return data

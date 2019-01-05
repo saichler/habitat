@@ -2,7 +2,7 @@ package service
 
 import (
 	. "github.com/saichler/habitat"
-	log "github.com/sirupsen/logrus"
+	. "github.com/saichler/utils/golang"
 	"time"
 )
 
@@ -20,13 +20,13 @@ type ServiceMessageHandler interface {
 }
 
 func (sh *ServiceHabitat) sendStartService() {
-	log.Info("Sending Start Service For: "+sh.service.Name())
+	Info("Sending Start Service For: "+sh.service.Name())
 	msg:=sh.serviceManager.NewMessage(sh.service.ServiceID(),sh.service.ServiceID(),sh.service.ServiceID(), Message_Type_Service_START,[]byte(sh.service.Name()))
 	sh.serviceManager.Send(msg)
 }
 
 func (sh *ServiceHabitat) repetitiveServicePing() {
-	log.Info("Adding repetitive ping for service: "+sh.service.Name())
+	Info("Adding repetitive ping for service: "+sh.service.Name())
 	time.Sleep(time.Second)
 	lastSent:=int64(0)
 	for ;sh.serviceManager.habitat.Running(); {

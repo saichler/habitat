@@ -4,7 +4,6 @@ import (
 	"errors"
 	. "github.com/saichler/habitat"
 	. "github.com/saichler/utils/golang"
-	log "github.com/sirupsen/logrus"
 	"plugin"
 	"strconv"
 	"sync"
@@ -29,7 +28,7 @@ func NewServiceManager() (*ServiceManager,error) {
 	sm:=&ServiceManager{}
 	habitat,err:=NewHabitat(sm)
 	if err!=nil {
-		log.Error("Failed to instantiate a Habitat")
+		Error("Failed to instantiate a Habitat")
 		return nil,err
 	}
 	sm.services = make(map[uint16]*ServiceHabitat)
@@ -60,25 +59,25 @@ func (sm *ServiceManager) HID() *HabitatID {
 func (sm *ServiceManager) InstallService(libraryPath string) error {
 	servicePlugin, e := plugin.Open(libraryPath)
 	if e!=nil {
-		log.Error("Unable to load serivce plugin:",e)
+		Error("Unable to load serivce plugin:",e)
 		return e
 	}
 	svr,e:=servicePlugin.Lookup("ServiceInstance")
 	if e!=nil {
-		log.Error("Unable to find ServiceInstance in the library "+libraryPath)
-		log.Error("Make sure you have: var ServiceInstance Service = &<your service struct>{}")
+		Error("Unable to find ServiceInstance in the library "+libraryPath)
+		Error("Make sure you have: var ServiceInstance Service = &<your service struct>{}")
 		return e
 	}
 
 	servicePtr,ok:=svr.(*Service)
 	if !ok {
 		msg:="ServiceInstance is not of type Service, please check that it implements Service and that ServiceInstance is a pointer."
-		log.Error(msg)
+		Error(msg)
 		return errors.New(msg)
 	}
 	service:=*servicePtr
 
-	log.Info("Service "+service.Name()+" was installed successfuly.")
+	Info("Service "+service.Name()+" was installed successfuly.")
 
 	sm.AddService(service)
 
@@ -196,12 +195,12 @@ func (sh *ServiceHabitat) processNextMessage() {
 		message := sh.inbox.Pop().(*Message)
 		msgHandler:=sh.serviceHandlers[message.Type]
 		if msgHandler==nil {
-			log.Error("There is no service message handler for message type:"+strconv.Itoa(int(message.Type)))
+			Error("There is no service message handler for message type:"+strconv.Itoa(int(message.Type)))
 		}else {
 			msgHandler.HandleMessage(sh.serviceManager,sh.service, message)
 		}
 	}
-	log.Info("Service "+sh.service.Name()+" has shutdown")
+	Info("Service "+sh.service.Name()+" has shutdown")
 }
 
 func (svm *ServiceManager) Habitat() *Habitat {

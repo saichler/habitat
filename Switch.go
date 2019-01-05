@@ -2,7 +2,6 @@ package habitat
 
 import (
 	. "github.com/saichler/utils/golang"
-	"github.com/sirupsen/logrus"
 )
 
 type Switch struct {
@@ -26,7 +25,7 @@ func (s *Switch) removeInterface(in *Interface) {
 	} else {
 		s.external.Del(in.peerHID.getHostID())
 	}
-	logrus.Info("Interface "+in.peerHID.String()+" was deleted")
+	Info("Interface "+in.peerHID.String()+" was deleted")
 }
 
 func (s *Switch) addInterface(in *Interface) bool {

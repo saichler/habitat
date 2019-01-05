@@ -2,7 +2,7 @@ package main
 
 import (
 	. "github.com/saichler/habitat/service"
-	"github.com/sirupsen/logrus"
+	. "github.com/saichler/utils/golang"
 	"os"
 	"strings"
 )
@@ -10,7 +10,7 @@ import (
 func main() {
 	s,err:=NewServiceManager()
 	if err!=nil {
-		logrus.Error("Failed to load habitat",err)
+		Error("Failed to load habitat",err)
 		return
 	}
 	args := os.Args[1:]

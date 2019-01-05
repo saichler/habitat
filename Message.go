@@ -2,7 +2,6 @@ package habitat
 
 import (
 	. "github.com/saichler/utils/golang"
-	"github.com/sirupsen/logrus"
 	"strconv"
 )
 
@@ -73,7 +72,7 @@ func (message *Message) Send(ne *Interface) error {
 		totalParts++
 
 		if totalParts>1000 {
-			logrus.Info("Large Message, total parts:"+strconv.Itoa(totalParts))
+			Info("Large Message, total parts:"+strconv.Itoa(totalParts))
 		}
 
 		ba := ByteSlice{}
@@ -97,11 +96,11 @@ func (message *Message) Send(ne *Interface) error {
 
 			packet := ne.CreatePacket(message.Dest,message.MID,uint32(i+1),true,0, packetData)
 			if i%1000==0 {
-				logrus.Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
+				Info("Sent "+strconv.Itoa(i)+" packets out of "+strconv.Itoa(totalParts))
 			}
 			err = ne.sendPacket(packet)
 			if err!=nil {
-				logrus.Error("Was able to send only"+strconv.Itoa(i)+" packets")
+				Error("Was able to send only"+strconv.Itoa(i)+" packets")
 				break
 			}
 		}

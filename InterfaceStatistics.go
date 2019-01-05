@@ -2,7 +2,6 @@ package habitat
 
 import (
 	"bytes"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"sync"
 )
@@ -71,7 +70,6 @@ func (ist *InterfaceStatistics) String() string {
 
 func (ist *InterfaceStatistics) getTxSpeed() string {
 	timeFloat:=float64(ist.txTime/1000000000)
-	logrus.Info(strconv.FormatFloat(timeFloat, 'f', 2, 64))
 	if int64(timeFloat)==0 {
 		//not enought data
 		return "N/A"

@@ -1,9 +1,9 @@
 package habitat
 
 import (
+	. "github.com/saichler/utils/golang"
 	"encoding/binary"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"time"
@@ -65,7 +65,7 @@ func (in *Interface) sendData(data []byte) error {
 
 	if e!=nil || n!=dataSize{
 		msg:="Failed to send data: "+e.Error()
-		log.Error(msg)
+		Error(msg)
 		return errors.New(msg)
 	}
 
@@ -85,13 +85,13 @@ func (in *Interface) read() {
 	for ;in.habitat.running;{
 		err:=in.readNextPacket()
 		if err!=nil {
-			log.Error("Error reading from socket:", err)
+			Error("Error reading from socket:", err)
 			break
 		}
 	}
-	log.Info("Interface to:"+in.peerHID.String()+" was shutdown!")
-	log.Info("Statistics:")
-	log.Info(in.statistics.String())
+	Info("Interface to:"+in.peerHID.String()+" was shutdown!")
+	Info("Statistics:")
+	Info(in.statistics.String())
 	in.isClosed = true
 }
 
@@ -100,7 +100,7 @@ func (in *Interface) write() {
 		data:=in.mailbox.PopOutbox()
 		err:=in.sendData(data)
 		if err!=nil {
-			log.Error("Error Sending to socket:", err)
+			Error("Error Sending to socket:", err)
 			break
 		}
 	}
@@ -140,7 +140,7 @@ func (in *Interface) readBytes(size int) ([]byte, error) {
 
 	if n<size {
 		if n==0 {
-			log.Warn("Expected " + strconv.Itoa(size) + " bytes but only read 0, Sleeping a second...")
+			Warn("Expected " + strconv.Itoa(size) + " bytes but only read 0, Sleeping a second...")
 			time.Sleep(time.Second)
 		}
 		data=data[0:n]
@@ -181,7 +181,7 @@ func (in *Interface) readNextPacket() error {
 }
 
 func (in *Interface) handshake() (bool, error) {
-	log.Info("Starting handshake process for:"+in.habitat.hid.String())
+	Info("Starting handshake process for:"+in.habitat.hid.String())
 
 	packet := in.CreatePacket(nil,0,0,false,0,HANDSHAK_DATA)
 
@@ -199,7 +199,7 @@ func (in *Interface) handshake() (bool, error) {
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)
 
-	log.Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())
+	Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())
 	in.peerHID = p.Source
 	if in.peerHID.getHostID()!=in.habitat.hid.getHostID() {
 		in.external = true
@@ -212,9 +212,4 @@ func (in *Interface) handshake() (bool, error) {
 	added:=in.habitat.nSwitch.addInterface(in)
 
 	return added,nil
-}
-
-func Error(errMsg string, e error) error {
-	log.Error(e)
-	return errors.New(errMsg)
 }

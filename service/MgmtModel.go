@@ -3,7 +3,6 @@ package service
 import (
 	. "github.com/saichler/habitat"
 	. "github.com/saichler/utils/golang"
-	log "github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -62,7 +61,7 @@ func (hi *HabitatInfo) PutService(componentId uint16,topic,name string) {
 	}
 
 	if si.LastPing==0 || time.Now().Unix()-si.LastPing>30 {
-		log.Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(componentId)) + " Name:" + name + " in " + hi.hid.String())
+		Info("Service Manager Discovered Service ID:" + strconv.Itoa(int(componentId)) + " Name:" + name + " in " + hi.hid.String())
 	}
 
 	si.LastPing = time.Now().Unix()

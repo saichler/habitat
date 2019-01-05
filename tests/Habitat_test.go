@@ -2,7 +2,7 @@ package tests
 
 import (
 	. "github.com/saichler/habitat"
-	log "github.com/sirupsen/logrus"
+	. "github.com/saichler/utils/golang"
 	"os"
 	"strconv"
 	"testing"
@@ -10,7 +10,7 @@ import (
 )
 
 func setup(){
-	log.SetLevel(log.DebugLevel)
+	//SetLevel(DebugLevel)
 }
 func tearDown(){}
 
@@ -28,13 +28,13 @@ func TestHabitat(t *testing.T) {
 
 	n1,e:=NewHabitat(h)
 	if e!=nil {
-		log.Error(e)
+		Error(e)
 		return
 	}
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
 
 	time.Sleep(time.Second*2)
 
@@ -45,7 +45,7 @@ func TestHabitat(t *testing.T) {
 
 	if h.replyCount!=2 {
 		t.Fail()
-		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
+		Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
 	n1.Shutdown()
 	n2.Shutdown()
@@ -60,14 +60,14 @@ func TestSwitch(t *testing.T) {
 
 	s,e:=NewHabitat(h)
 	if e!=nil {
-		log.Error(e)
+		Error(e)
 		return
 	}
 
 	n1,e:=NewHabitat(h)
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
 
 	time.Sleep(time.Second*2)
 
@@ -78,7 +78,7 @@ func TestSwitch(t *testing.T) {
 
 	if h.replyCount!=2 {
 		t.Fail()
-		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
+		Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
 	n1.Shutdown()
 	n2.Shutdown()
@@ -93,13 +93,13 @@ func TestMultiPart(t *testing.T) {
 
 	n1,e:=NewHabitat(h)
 	if e!=nil {
-		log.Error(e)
+		Error(e)
 		return
 	}
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
 
 	time.Sleep(time.Second*2)
 
@@ -110,7 +110,7 @@ func TestMultiPart(t *testing.T) {
 
 	if h.replyCount!=2 {
 		t.Fail()
-		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
+		Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
 	n1.Shutdown()
 	n2.Shutdown()
@@ -134,7 +134,7 @@ func TestMessageScale(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
+		Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
 	}
 
 	time.Sleep(time.Second*2)
@@ -146,9 +146,9 @@ func TestMessageScale(t *testing.T) {
 
 	if h.replyCount!=numOfMessages {
 		t.Fail()
-		log.Error("Expected "+strconv.Itoa(numOfMessages)+" and got "+strconv.Itoa(h.replyCount))
+		Error("Expected "+strconv.Itoa(numOfMessages)+" and got "+strconv.Itoa(h.replyCount))
 	} else {
-		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+		Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
 
 	for _,hb:=range habitats {
@@ -174,7 +174,7 @@ func TestHabitatAndMessageScale(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
+		Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
 	}
 
 	time.Sleep(time.Second*4)
@@ -186,9 +186,9 @@ func TestHabitatAndMessageScale(t *testing.T) {
 
 	if h.replyCount!=numOfMessages*(numOfHabitats-2) {
 		t.Fail()
-		log.Error("Expected "+strconv.Itoa(numOfMessages*(numOfHabitats-2))+" and got "+strconv.Itoa(h.replyCount))
+		Error("Expected "+strconv.Itoa(numOfMessages*(numOfHabitats-2))+" and got "+strconv.Itoa(h.replyCount))
 	} else {
-		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+		Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
 
 	for _,hb:=range habitats {
@@ -218,7 +218,7 @@ func TestPublish(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
+		Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
 	}
 
 	time.Sleep(time.Second*2)
@@ -231,9 +231,9 @@ func TestPublish(t *testing.T) {
 
 	if h.replyCount!=len(habitats) {
 		t.Fail()
-		log.Error("Expected "+strconv.Itoa(len(habitats))+" and got "+strconv.Itoa(h.replyCount))
+		Error("Expected "+strconv.Itoa(len(habitats))+" and got "+strconv.Itoa(h.replyCount))
 	} else {
-		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+		Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
 
 	for _,hb:=range habitats {
@@ -249,13 +249,13 @@ func TestHabitatEncrypted(t *testing.T) {
 
 	n1,e:=NewHabitat(h)
 	if e!=nil {
-		log.Error(e)
+		Error(e)
 		return
 	}
 
 	n2,e:=NewHabitat(h)
 
-	log.Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
 
 	time.Sleep(time.Second*2)
 
@@ -266,7 +266,7 @@ func TestHabitatEncrypted(t *testing.T) {
 
 	if h.replyCount!=2 {
 		t.Fail()
-		log.Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
+		Error("Expected 2 and got "+strconv.Itoa(h.replyCount))
 	}
 	n1.Shutdown()
 	n2.Shutdown()
@@ -290,7 +290,7 @@ func TestHabitatAndMessageScaleSecure(t *testing.T) {
 
 		}
 		habitats[i]=h
-		log.Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
+		Info("Habitat HabitatID:"+habitats[i].ServiceID().String())
 	}
 
 	time.Sleep(time.Second*6)
@@ -303,9 +303,9 @@ func TestHabitatAndMessageScaleSecure(t *testing.T) {
 
 	if h.replyCount!=numOfMessages*(numOfHabitats-2) {
 		t.Fail()
-		log.Error("Expected "+strconv.Itoa(numOfMessages*(numOfHabitats-2))+" and got "+strconv.Itoa(h.replyCount))
+		Error("Expected "+strconv.Itoa(numOfMessages*(numOfHabitats-2))+" and got "+strconv.Itoa(h.replyCount))
 	} else {
-		log.Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
+		Info("Passed sending & receiving "+strconv.Itoa(h.replyCount)+ " messages")
 	}
 
 	for _,hb:=range habitats {

@@ -2,7 +2,7 @@ package tests
 
 import (
 	. "github.com/saichler/habitat"
-	log "github.com/sirupsen/logrus"
+	. "github.com/saichler/utils/golang"
 	"sync"
 )
 
@@ -28,7 +28,7 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 	str:=string(message.Data)
 	if message.Type == REQUEST {
 		if sfh.print {
-			log.Info("Request: " +str+" from:"+message.Source.String())
+			Info("Request: " +str+" from:"+message.Source.String())
 		}
 		sfh.ReplyString(str, habitat, message.Source)
 	} else {
@@ -36,14 +36,14 @@ func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Messag
 		sfh.replyCount++
 		sfh.myx.Unlock()
 		if sfh.print {
-			log.Info("Reply: " + str+" to:"+message.Dest.String())
+			Info("Reply: " + str+" to:"+message.Dest.String())
 		}
 	}
 }
 
 func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *ServiceID){
 	if sfh.print {
-		log.Debug("Sending Request:" + str)
+		Debug("Sending Request:" + str)
 	}
 	if dest==nil {
 		dest=NewServiceID(habitat.GetSwitchNID(),0,"")
@@ -55,7 +55,7 @@ func (sfh *StringMessageHandler)SendString(str string, habitat *Habitat, dest *S
 
 func (sfh *StringMessageHandler)ReplyString(str string, habitat *Habitat, dest *ServiceID){
 	if sfh.print {
-		log.Debug("Sending Reply:"+str+" to:"+dest.String())
+		Debug("Sending Reply:"+str+" to:"+dest.String())
 	}
 	if dest==nil {
 		dest=NewServiceID(habitat.GetSwitchNID(),0,"")
