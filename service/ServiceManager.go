@@ -145,6 +145,10 @@ func (sm *ServiceManager) getServiceHabitat(message *Message) *ServiceHabitat {
 	return sm.services[cid]
 }
 
+func (sm *ServiceManager) HandleUnreachable(habitat *Habitat, message *Message){
+
+}
+
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 	if message.IsPublish() {
 		if message.Type==Message_Type_Service_Ping {
