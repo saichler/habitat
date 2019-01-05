@@ -9,8 +9,8 @@ type Packet struct {
 	Dest   *HabitatID
 	MID    uint32
 	PID    uint32
-	M      bool
-	P      uint16
+	MultiPart bool
+	Priority      int //uint7 if existed
 	Data []byte
 }
 
@@ -20,8 +20,8 @@ func (p *Packet) Marshal() []byte {
 	p.Dest.Marshal(bs)
 	bs.AddUInt32(p.MID)
 	bs.AddUInt32(p.PID)
-	bs.AddBool(p.M)
-	bs.AddUInt16(p.P)
+	mAndP:=EncodeBoolAndUInt7(p.MultiPart,p.Priority)
+	bs.AddByte(mAndP)
 	bs.AddByteSlice(encrypt(p.Data))
 	return bs.Data()
 }
@@ -40,7 +40,7 @@ func (p *Packet) UnmarshalAll(source,dest *HabitatID,ba *ByteSlice) {
 	p.Dest = dest
 	p.MID =ba.GetUInt32()
 	p.PID=ba.GetUInt32()
-	p.M=ba.GetBool()
-	p.P=ba.GetUInt16()
+	mAndP:=ba.GetByte()
+	p.MultiPart,p.Priority=DecodeBoolAndUInt7(mAndP)
 	p.Data=decrypt(ba.GetByteSlice())
 }

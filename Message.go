@@ -30,7 +30,7 @@ func (message *Message) Decode (pkt *Packet, inbox *Mailbox,isUnreachable bool){
 		packet.UnmarshalAll(origSource,origDest,ba)
 	}
 
-	if packet.M {
+	if packet.MultiPart {
 		message.Data,message.Complete=inbox.addPacket(packet)
 	} else {
 		message.Data = packet.Data
