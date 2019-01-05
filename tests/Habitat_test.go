@@ -313,3 +313,66 @@ func TestHabitatAndMessageScaleSecure(t *testing.T) {
 	}
 	time.Sleep(time.Second*2)
 }
+
+func TestDestinationUnreachable(t *testing.T) {
+	MTU = 512
+	ENCRYPTED=false
+	h:= NewStringMessageHandler()
+
+	n1,e:=NewHabitat(h)
+	if e!=nil {
+		Error(e)
+		return
+	}
+
+	n2,e:=NewHabitat(h)
+
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+
+	time.Sleep(time.Second*2)
+
+	unreachInternal:=NewServiceID(NewHID(GetLocalIpAddress(),52005),0,"")
+
+	h.SendString("Hello World",n2,unreachInternal)
+	h.SendString("Hello World",n1,unreachInternal)
+
+	time.Sleep(time.Second*2)
+
+	if h.unreachCount!=2 {
+		t.Fail()
+		Error("Expected 2 and got "+strconv.Itoa(h.unreachCount))
+	}
+	n1.Shutdown()
+	n2.Shutdown()
+	time.Sleep(time.Second*2)
+}
+
+func TestMultiPartUnreachable(t *testing.T) {
+	MTU = 4
+	ENCRYPTED=false
+	h:= NewStringMessageHandler()
+
+	n1,e:=NewHabitat(h)
+	if e!=nil {
+		Error(e)
+		return
+	}
+
+	n2,e:=NewHabitat(h)
+
+	Info("Node1:",n1.ServiceID().String()," Node2:",n2.ServiceID().String())
+
+	time.Sleep(time.Second*2)
+	unreachInternal:=NewServiceID(NewHID(GetLocalIpAddress(),52005),0,"")
+	h.SendString("Hello World",n2,unreachInternal)
+
+	time.Sleep(time.Second*2)
+
+	if h.unreachCount!=1 {
+		t.Fail()
+		Error("Expected 1 and got "+strconv.Itoa(h.unreachCount))
+	}
+	n1.Shutdown()
+	n2.Shutdown()
+	time.Sleep(time.Second*2)
+}

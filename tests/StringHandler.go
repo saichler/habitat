@@ -13,6 +13,7 @@ const (
 
 type StringMessageHandler struct {
 	replyCount int
+	unreachCount int
 	print bool
 	myx *sync.Mutex
 }
@@ -22,6 +23,11 @@ func NewStringMessageHandler() *StringMessageHandler {
 	sfh.print = true
 	sfh.myx = &sync.Mutex{}
 	return sfh
+}
+
+func (sfh *StringMessageHandler)  HandleUnreachable(habitat *Habitat, message *Message){
+	sfh.unreachCount++
+	Info("Handled Unreachable!!!!")
 }
 
 func (sfh *StringMessageHandler) HandleMessage(habitat *Habitat, message *Message){

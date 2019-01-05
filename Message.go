@@ -18,9 +18,18 @@ type Message struct {
 
 type MessageHandler interface {
 	HandleMessage(*Habitat,*Message)
+	HandleUnreachable(*Habitat,*Message)
 }
 
-func (message *Message) Decode (packet *Packet, inbox *Mailbox){
+func (message *Message) Decode (pkt *Packet, inbox *Mailbox,isUnreachable bool){
+
+	packet:=pkt
+
+	if isUnreachable {
+		origSource, origDest, ba := unmarshalPacketHeader(pkt.Data)
+		packet.UnmarshalAll(origSource,origDest,ba)
+	}
+
 	if packet.M {
 		message.Data,message.Complete=inbox.addPacket(packet)
 	} else {
@@ -29,7 +38,10 @@ func (message *Message) Decode (packet *Packet, inbox *Mailbox){
 	}
 
 	if message.Complete {
-		message.Unmarshal(packet.Source,packet.Dest)
+		if packet.Dest.Equal(UNREACH_HID) {
+		} else {
+			message.Unmarshal(packet.Source, packet.Dest)
+		}
 	}
 }
 

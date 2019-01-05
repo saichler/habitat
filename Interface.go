@@ -30,18 +30,23 @@ func newInterface(conn net.Conn, habitat *Habitat) *Interface {
 	return in
 }
 
-func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
+func CreatePacket(source,dest *HabitatID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
 	packet := &Packet{}
-	packet.Source = in.habitat.hid
-	if dest!=nil {
-		packet.Dest = dest.hid
-	}
+	packet.Source = source
+	packet.Dest = dest
 	packet.MID = frameId
 	packet.PID = packetNumber
 	packet.M = multi
 	packet.P = priority
 	packet.Data = data
 	return packet
+}
+
+func (in *Interface)CreatePacket(dest *ServiceID, frameId,packetNumber uint32, multi bool, priority uint16, data []byte) *Packet {
+	if dest!=nil {
+		return CreatePacket(in.habitat.hid,dest.hid,frameId,packetNumber,multi,priority,data)
+	}
+	return CreatePacket(in.habitat.hid,nil,frameId,packetNumber,multi,priority,data)
 }
 
 func (in *Interface) sendData(data []byte) error {

@@ -1,6 +1,7 @@
 package habitat
 
 import (
+	"errors"
 	. "github.com/saichler/utils/golang"
 )
 
@@ -45,14 +46,29 @@ func (s *Switch) addInterface(in *Interface) bool {
 	return true
 }
 
+func (s *Switch) sendUnreachable(source *HabitatID,data []byte) {
+	in:=s.getInterface(source)
+	p:=CreatePacket(source,UNREACH_HID,0,0,false,0,data)
+	in.mailbox.outbox.Push(p.Marshal())
+}
+
 func (s *Switch) handlePacket(data []byte,inbox *Mailbox) error {
 	source,dest,ba:=unmarshalPacketHeader(data)
-	if dest.IsPublish() {
+	if dest.Equal(UNREACH_HID) {
+		if source.Equal(s.habitat.hid) {
+			s.handleMyPacket(source,dest,data,ba,inbox,true)
+
+		}
+	} else if dest.IsPublish() {
 		s.handleMulticast(source,dest,data,ba,inbox)
 	} else if dest.Equal(s.habitat.HID()) {
-		s.handleMyPacket(source,dest,data,ba,inbox)
+		s.handleMyPacket(source,dest,data,ba,inbox,false)
 	} else {
 		in:=s.getInterface(dest)
+		if in==nil {
+			s.sendUnreachable(source,data)
+			return errors.New("Unreachable address:"+dest.String())
+		}
 		in.mailbox.PushOutbox(data)
 	}
 	return nil
@@ -73,20 +89,23 @@ func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlic
 			}
 		}
 	}
-
-	s.handleMyPacket(source,dest,data,ba,inbox)
+	s.handleMyPacket(source,dest,data,ba,inbox,false)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Mailbox){
+func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Mailbox,isUnreachable bool){
 	message := Message{}
 	p:=&Packet{}
 	p.UnmarshalAll(source,dest,ba)
-	message.Decode(p,inbox)
+	message.Decode(p,inbox,isUnreachable)
 
 	if message.Complete {
 		ne:=s.getInterface(source)
 		ne.statistics.AddRxMessages()
-		s.habitat.messageHandler.HandleMessage(s.habitat, &message)
+		if !isUnreachable {
+			s.habitat.messageHandler.HandleMessage(s.habitat, &message)
+		} else {
+			s.habitat.messageHandler.HandleUnreachable(s.habitat, &message)
+		}
 	}
 }
 
@@ -121,17 +140,29 @@ func (s *Switch) getInterface(hid *HabitatID) *Interface {
 	if hid.sameMachine(s.habitat.hid) {
 		if s.habitat.isSwitch {
 			inter,_ := s.internal.Get(*hid)
+			if inter==nil {
+				return nil
+			}
 			in = inter.(*Interface)
 		} else {
 			inter,_ := s.internal.Get(*s.habitat.GetSwitchNID())
+			if inter==nil {
+				return nil
+			}
 			in = inter.(*Interface)
 		}
 	} else {
 		if s.habitat.isSwitch {
 			inter,_ := s.external.Get(hid.getHostID())
+			if inter==nil {
+				return nil
+			}
 			in = inter.(*Interface)
 		} else {
 			inter,_ := s.internal.Get(*s.habitat.GetSwitchNID())
+			if inter==nil {
+				return nil
+			}
 			in = inter.(*Interface)
 		}
 	}

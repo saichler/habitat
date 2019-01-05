@@ -202,6 +202,7 @@ func (habitat *Habitat) Send(message *Message) error {
 		ne := habitat.nSwitch.getInterface(message.Dest.hid)
 		if ne==nil {
 			Error("Unknown Destination:"+message.Dest.String())
+			habitat.messageHandler.HandleUnreachable(habitat,message)
 			return errors.New("Unknown Destination:"+message.Dest.String())
 		}
 		e = message.Send(ne)

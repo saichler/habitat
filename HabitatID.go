@@ -11,9 +11,12 @@ import (
 
 const (
 	PUBLISH_MARK=-9999
+	UNREACHABLE_MARK=-9998
 )
 
 var PUBLISH_HID = newPublishHabitatID()
+var UNREACH_HID = newDestUnreachableHabitatID()
+var UNREACH_SID = newDestUnreachableServiceID()
 
 type HabitatID struct {
 	UuidM int64
@@ -37,6 +40,24 @@ func newPublishHabitatID() *HabitatID {
 	newHID.UuidM = PUBLISH_MARK
 	newHID.UuidL = PUBLISH_MARK
 	return newHID
+}
+
+func newDestUnreachableHabitatID() *HabitatID {
+	newHID := &HabitatID{}
+	newHID.UuidM = UNREACHABLE_MARK
+	newHID.UuidL = UNREACHABLE_MARK
+	return newHID
+}
+
+func newDestUnreachableServiceID() *ServiceID {
+	newHID := &HabitatID{}
+	newHID.UuidM = UNREACHABLE_MARK
+	newHID.UuidL = UNREACHABLE_MARK
+	newSID := &ServiceID{}
+	newSID.hid = newHID
+	newSID.cid = 0
+	newSID.topic = "U"
+	return newSID
 }
 
 func (hid *HabitatID) Marshal(ba *ByteSlice){
