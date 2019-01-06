@@ -6,8 +6,8 @@ import (
 
 type Mailbox struct {
 	pending *ConcurrentMap
-	inbox   *Queue
-	outbox  *Queue
+	inbox   *PriorityQueue
+	outbox  *PriorityQueue
 }
 
 type SourceMultiPart struct {
@@ -23,8 +23,8 @@ type MultiPart struct {
 
 func NewMailbox() *Mailbox {
 	mb :=&Mailbox{}
-	mb.inbox = NewQueue()
-	mb.outbox = NewQueue()
+	mb.inbox = NewPriorityQueue()
+	mb.outbox = NewPriorityQueue()
 	mb.pending = NewConcurrentMap()
 	return mb
 }
@@ -43,12 +43,12 @@ func (mailbox *Mailbox) PopOutbox() []byte {
 	return mailbox.outbox.Pop().([]byte)
 }
 
-func (mailbox *Mailbox) PushInbox(pData []byte) {
-	mailbox.inbox.Push(pData)
+func (mailbox *Mailbox) PushInbox(pData []byte,priority int) {
+	mailbox.inbox.Push(pData,priority)
 }
 
-func (mailbox *Mailbox) PushOutbox(pData []byte) {
-	mailbox.outbox.Push(pData)
+func (mailbox *Mailbox) PushOutbox(pData []byte,priority int) {
+	mailbox.outbox.Push(pData,priority)
 }
 
 func (smp *SourceMultiPart) newMultiPart(fid uint32) *MultiPart {

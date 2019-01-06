@@ -82,7 +82,7 @@ func (in *Interface) sendPacket(p *Packet) (error) {
 	data:=p.Marshal()
 	end:=time.Now().UnixNano()
 	in.statistics.AddTxTimeSync(end-start)
-	in.mailbox.PushOutbox(data)
+	in.mailbox.PushOutbox(data,p.Priority)
 	return nil
 }
 
@@ -179,7 +179,7 @@ func (in *Interface) readNextPacket() error {
 	//in.readLock.Unlock()
 
 	if in.habitat.running {
-		in.mailbox.PushInbox(data)
+		in.mailbox.PushInbox(data,GetPriority(data))
 	}
 
 	return nil
@@ -200,9 +200,9 @@ func (in *Interface) handshake() (bool, error) {
 
 	data:=in.mailbox.PopInbox()
 
-	source,dest,ba:=unmarshalPacketHeader(data)
+	source,dest,m,prs,pri,ba:=unmarshalPacketHeader(data)
 	p:=&Packet{}
-	p.UnmarshalAll(source,dest,ba)
+	p.UnmarshalAll(source,dest,m,prs,pri,ba)
 
 	Info("handshaked "+in.habitat.hid.String()+" with nid:", p.Source.String())
 	in.peerHID = p.Source

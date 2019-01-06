@@ -22,7 +22,7 @@ type ServiceHabitat struct {
 	serviceHandlers map[uint16]ServiceMessageHandler
 	unreachableHandlers map[uint16]ServiceMessageHandler
 	service Service
-	inbox *Queue
+	inbox *PriorityQueue
 }
 
 func NewServiceManager() (*ServiceManager,error) {
@@ -96,7 +96,7 @@ func (sm *ServiceManager) AddService(service Service){
 	sh:=&ServiceHabitat{}
 	sh.service = service
 	sh.serviceManager = sm
-	sh.inbox=NewQueue()
+	sh.inbox=NewPriorityQueue()
 	sh.serviceHandlers = make(map[uint16]ServiceMessageHandler)
 	for _,v:=range service.ServiceMessageHandlers() {
 		sh.serviceHandlers[v.Type()]=v
@@ -158,19 +158,19 @@ func (sm *ServiceManager) HandleUnreachable(habitat *Habitat, message *Message){
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 	if message.IsPublish() {
 		if message.Type==Message_Type_Service_Ping {
-			sm.services[MANAGEMENT_ID].inbox.Push(message)
+			sm.services[MANAGEMENT_ID].inbox.Push(message,message.Priority)
 			return
 		}
 		rg:=sm.topics[message.Dest.Topic()]
 		if rg!=nil {
 			for _,sid:=range rg {
 				service:=sm.services[sid]
-				service.inbox.Push(message)
+				service.inbox.Push(message,message.Priority)
 			}
 		}
 	} else {
 		sh:=sm.getServiceHabitat(message)
-		sh.inbox.Push(message)
+		sh.inbox.Push(message,message.Priority)
 	}
 }
 

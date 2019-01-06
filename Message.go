@@ -15,6 +15,7 @@ type Message struct {
 	Data     []byte
 	Complete bool
 	Unreachable bool
+	Priority int
 }
 
 type MessageHandler interface {
@@ -27,8 +28,8 @@ func (message *Message) Decode (pkt *Packet, inbox *Mailbox,isUnreachable bool){
 	packet:=pkt
 
 	if isUnreachable {
-		origSource, origDest, ba := unmarshalPacketHeader(pkt.Data)
-		packet.UnmarshalAll(origSource,origDest,ba)
+		origSource, origDest,om,oprs,opri, ba := unmarshalPacketHeader(pkt.Data)
+		packet.UnmarshalAll(origSource,origDest,om,oprs,opri,ba)
 	}
 
 	if packet.MultiPart {

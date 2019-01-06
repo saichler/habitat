@@ -46,56 +46,56 @@ func (s *Switch) addInterface(in *Interface) bool {
 	return true
 }
 
-func (s *Switch) sendUnreachable(source *HabitatID,data []byte) {
+func (s *Switch) sendUnreachable(source *HabitatID,priority int,data []byte) {
 	in:=s.getInterface(source)
 	p:=CreatePacket(source,UNREACH_HID,0,0,false,0,data)
-	in.mailbox.outbox.Push(p.Marshal())
+	in.mailbox.outbox.Push(p.Marshal(),priority)
 }
 
 func (s *Switch) handlePacket(data []byte,inbox *Mailbox) error {
-	source,dest,ba:=unmarshalPacketHeader(data)
+	source,dest,m,prs,pri,ba:=unmarshalPacketHeader(data)
 	if dest.Equal(UNREACH_HID) {
 		if source.Equal(s.habitat.hid) {
-			s.handleMyPacket(source,dest,data,ba,inbox,true)
+			s.handleMyPacket(source,dest,m,prs,pri,data,ba,inbox,true)
 
 		}
 	} else if dest.IsPublish() {
-		s.handleMulticast(source,dest,data,ba,inbox)
+		s.handleMulticast(source,dest,m,prs,pri,data,ba,inbox)
 	} else if dest.Equal(s.habitat.HID()) {
-		s.handleMyPacket(source,dest,data,ba,inbox,false)
+		s.handleMyPacket(source,dest,m,prs,pri,data,ba,inbox,false)
 	} else {
 		in:=s.getInterface(dest)
 		if in==nil {
-			s.sendUnreachable(source,data)
+			s.sendUnreachable(source,pri,data)
 			return errors.New("Unreachable address:"+dest.String())
 		}
-		in.mailbox.PushOutbox(data)
+		in.mailbox.PushOutbox(data,pri)
 	}
 	return nil
 }
 
-func (s *Switch) handleMulticast(source,dest *HabitatID,data []byte,ba *ByteSlice, inbox *Mailbox){
+func (s *Switch) handleMulticast(source,dest *HabitatID,m,prs bool,pri int,data []byte,ba *ByteSlice, inbox *Mailbox){
 	if s.habitat.isSwitch {
 		all:=s.getAllInternal()
 		for k,v:=range all {
 			if !k.Equal(source) {
-				v.mailbox.PushOutbox(data)
+				v.mailbox.PushOutbox(data,pri)
 			}
 		}
 		if source.sameMachine(s.habitat.hid) {
 			all:=s.getAllExternal()
 			for _,v:=range all {
-				v.mailbox.PushOutbox(data)
+				v.mailbox.PushOutbox(data,pri)
 			}
 		}
 	}
-	s.handleMyPacket(source,dest,data,ba,inbox,false)
+	s.handleMyPacket(source,dest,m,prs,pri,data,ba,inbox,false)
 }
 
-func (s *Switch) handleMyPacket(source,dest *HabitatID,data []byte, ba *ByteSlice, inbox *Mailbox,isUnreachable bool){
+func (s *Switch) handleMyPacket(source,dest *HabitatID,m,prs bool,pri int,data []byte, ba *ByteSlice, inbox *Mailbox,isUnreachable bool){
 	message := Message{}
 	p:=&Packet{}
-	p.UnmarshalAll(source,dest,ba)
+	p.UnmarshalAll(source,dest,m,prs,pri,ba)
 	message.Decode(p,inbox,isUnreachable)
 
 	if message.Complete {
