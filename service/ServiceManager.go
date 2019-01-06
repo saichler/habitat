@@ -15,6 +15,7 @@ type ServiceManager struct {
 	lock *sync.Cond
 	topics map[string][]uint16
 	nextComponentID uint16
+	repetitive *RepetitiveMessages
 }
 
 type ServiceHabitat struct {
@@ -35,6 +36,7 @@ func NewServiceManager() (*ServiceManager,error) {
 	sm.services = make(map[uint16]*ServiceHabitat)
 	sm.topics = make(map[string][]uint16)
 	sm.nextComponentID = 10
+	sm.repetitive = NewRepetitiveMessages(sm)
 
 	sm.habitat = habitat
 	sm.lock = sync.NewCond(&sync.Mutex{})
@@ -119,7 +121,7 @@ func (sm *ServiceManager) AddService(service Service){
 		mh:= StartMgmtHandler{}
 		mh.HandleMessage(sm,service,nil)
 	}
-	go sh.repetitiveServicePing()
+	sh.repetitiveServicePing(sm.repetitive)
 }
 
 func (sm *ServiceManager) getManagementService() *MgmtService {
