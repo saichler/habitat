@@ -227,7 +227,7 @@ func TestPublish(t *testing.T) {
 
 	h.SendString("Hello World Multicast",habitats[2],publishID)
 
-	time.Sleep(time.Second*2)
+	time.Sleep(time.Second*3)
 
 	if h.replyCount!=len(habitats) {
 		t.Fail()
@@ -375,4 +375,22 @@ func TestMultiPartUnreachable(t *testing.T) {
 	n1.Shutdown()
 	n2.Shutdown()
 	time.Sleep(time.Second*2)
+}
+
+func TestShutdown(t *testing.T) {
+	h:= NewStringMessageHandler()
+
+	n1,e:=NewHabitat(h)
+	if e!=nil {
+		Error(e)
+		return
+	}
+	n2,e:=NewHabitat(h)
+
+	time.Sleep(time.Second*3)
+
+	n1.Shutdown()
+	n2.Shutdown()
+
+	time.Sleep(time.Second*5)
 }

@@ -35,12 +35,25 @@ func newSourceMultipart() *SourceMultiPart {
 	return smp
 }
 
+func (mailbox *Mailbox) SetName(name string) {
+	mailbox.inbox.SetName(name)
+	mailbox.outbox.SetName(name)
+}
+
 func (mailbox *Mailbox) PopInbox() []byte {
-	return mailbox.inbox.Pop().([]byte)
+	next:=mailbox.inbox.Pop()
+	if next!=nil {
+		return next.([]byte)
+	}
+	return nil
 }
 
 func (mailbox *Mailbox) PopOutbox() []byte {
-	return mailbox.outbox.Pop().([]byte)
+	next:=mailbox.outbox.Pop()
+	if next!=nil {
+		return next.([]byte)
+	}
+	return nil
 }
 
 func (mailbox *Mailbox) PushInbox(pData []byte,priority int) {
@@ -115,4 +128,9 @@ func (mailbox *Mailbox) addPacket(packet *Packet) ([]byte, bool) {
 		return messageData,isComplete
 	}
 	return nil,isComplete
+}
+
+func (mailbox *Mailbox) Shutdown() {
+	mailbox.inbox.Shutdown()
+	mailbox.outbox.Shutdown()
 }

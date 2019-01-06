@@ -94,7 +94,7 @@ func (in *Interface) read() {
 			break
 		}
 	}
-	Info("Interface to:"+in.peerHID.String()+" was shutdown!")
+	Info("Read Interface from:"+in.peerHID.String()+" was shutdown!")
 	Info("Statistics:")
 	Info(in.statistics.String())
 	in.isClosed = true
@@ -109,6 +109,7 @@ func (in *Interface) write() {
 			break
 		}
 	}
+	Info("Write Interface to:"+in.peerHID.String()+" was shutdown!")
 	in.isClosed = true
 }
 
@@ -123,6 +124,7 @@ func (in *Interface) handle() {
 			break
 		}
 	}
+	Info("Handle Interface of:"+in.peerHID.String()+" was shutdown!")
 }
 
 func (in *Interface) start() {
@@ -214,7 +216,14 @@ func (in *Interface) handshake() (bool, error) {
 		in.habitat.switchHID = in.peerHID
 	}
 
+	in.mailbox.SetName(in.peerHID.String())
+
 	added:=in.habitat.nSwitch.addInterface(in)
 
 	return added,nil
+}
+
+func (in *Interface) Shutdown() {
+	in.conn.Close()
+	in.mailbox.Shutdown()
 }

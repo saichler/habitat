@@ -48,21 +48,24 @@ func (s *Switch) addInterface(in *Interface) bool {
 
 func (s *Switch) sendUnreachable(source *HabitatID,priority int,data []byte) {
 	in:=s.getInterface(source)
+	if in==nil {
+		return
+	}
 	p:=CreatePacket(source,UNREACH_HID,0,0,false,0,data)
 	in.mailbox.outbox.Push(p.Marshal(),priority)
 }
 
-func (s *Switch) handlePacket(data []byte,inbox *Mailbox) error {
+func (s *Switch) handlePacket(data []byte, mailbox *Mailbox) error {
 	source,dest,m,prs,pri,ba:=unmarshalPacketHeader(data)
 	if dest.Equal(UNREACH_HID) {
 		if source.Equal(s.habitat.hid) {
-			s.handleMyPacket(source,dest,m,prs,pri,data,ba,inbox,true)
+			s.handleMyPacket(source,dest,m,prs,pri,data,ba, mailbox,true)
 
 		}
 	} else if dest.IsPublish() {
-		s.handleMulticast(source,dest,m,prs,pri,data,ba,inbox)
+		s.handleMulticast(source,dest,m,prs,pri,data,ba, mailbox)
 	} else if dest.Equal(s.habitat.HID()) {
-		s.handleMyPacket(source,dest,m,prs,pri,data,ba,inbox,false)
+		s.handleMyPacket(source,dest,m,prs,pri,data,ba, mailbox,false)
 	} else {
 		in:=s.getInterface(dest)
 		if in==nil {
@@ -170,9 +173,13 @@ func (s *Switch) getInterface(hid *HabitatID) *Interface {
 }
 
 func (s *Switch) shutdown() {
-	all:=s.getAllInternal()
-	for _,v:=range all {
-		v.conn.Close()
+	allInternal:=s.getAllInternal()
+	for _,v:=range allInternal {
+		v.Shutdown()
+	}
+	allExternal:=s.getAllExternal()
+	for _,v:=range allExternal {
+		v.Shutdown()
 	}
 }
 

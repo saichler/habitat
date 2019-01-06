@@ -50,6 +50,9 @@ func (p *Packet) UnmarshalAll(source,dest *HabitatID,m,prs bool,pri int,ba *Byte
 }
 
 func GetPriority(data []byte) int {
-	_,_,p:=Decode2BoolAndUInt6(data[32])
+	p:=0
+	//if len(data)>32{
+		_, _, p = Decode2BoolAndUInt6(data[32])
+	//}
 	return p
 }
