@@ -11,7 +11,7 @@ import (
 
 type ServiceManager struct {
 	habitat *Habitat
-	services map[uint16]*ServiceHabitat
+	services *ConcurrentMap
 	lock *sync.Cond
 	topics map[string][]uint16
 	nextComponentID uint16
@@ -33,7 +33,7 @@ func NewServiceManager() (*ServiceManager,error) {
 		Error("Failed to instantiate a Habitat")
 		return nil,err
 	}
-	sm.services = make(map[uint16]*ServiceHabitat)
+	sm.services = NewConcurrentMap()
 	sm.topics = make(map[string][]uint16)
 	sm.nextComponentID = 10
 	sm.repetitive = NewRepetitiveMessages(sm)
@@ -87,6 +87,11 @@ func (sm *ServiceManager) InstallService(libraryPath string) error {
 	return nil
 }
 
+func (sm *ServiceManager) RemoveService(cid uint16) {
+	sm.repetitive.UnRegisterRepetitive(cid)
+	sm.services.Del(cid)
+}
+
 func (sm *ServiceManager) AddService(service Service){
 	sm.lock.L.Lock()
 	componentId:=sm.nextComponentID
@@ -99,6 +104,7 @@ func (sm *ServiceManager) AddService(service Service){
 	sh.service = service
 	sh.serviceManager = sm
 	sh.inbox=NewPriorityQueue()
+	sh.inbox.SetName(service.Name())
 	sh.serviceHandlers = make(map[uint16]ServiceMessageHandler)
 	for _,v:=range service.ServiceMessageHandlers() {
 		sh.serviceHandlers[v.Type()]=v
@@ -108,9 +114,7 @@ func (sm *ServiceManager) AddService(service Service){
 		sh.unreachableHandlers[v.Type()]=v
 	}
 
-	sm.lock.L.Lock()
-	sm.services[service.ServiceID().ComponentID()]=sh
-	sm.lock.L.Unlock()
+	sm.services.Put(service.ServiceID().ComponentID(),sh)
 
 	go sh.processNextMessage()
 
@@ -125,32 +129,32 @@ func (sm *ServiceManager) AddService(service Service){
 }
 
 func (sm *ServiceManager) getManagementService() *MgmtService {
-	return sm.services[MANAGEMENT_ID].service.(*MgmtService)
-}
-
-func (sm *ServiceManager) getServiceHabitats() map[uint16]*ServiceHabitat {
-	sm.lock.L.Lock()
-	defer sm.lock.L.Unlock()
-	services:=make(map[uint16]*ServiceHabitat)
-	for k,v:=range sm.services {
-		services[k]=v
+	sh,ok:=sm.services.Get(MANAGEMENT_ID)
+	if !ok {
+		panic("not ok")
 	}
-	return services
+	return sh.(*ServiceHabitat).service.(*MgmtService)
 }
 
 func (sm *ServiceManager) getServiceHabitat(message *Message) *ServiceHabitat {
 	cid:=message.Dest.ComponentID()
-	sm.lock.L.Lock()
-	defer sm.lock.L.Unlock()
 	if cid==0 {
-		for k,v:=range sm.services {
-			if v.service.ServiceID().Topic()==message.Dest.Topic() {
-				cid = k
+		allHabitats:=sm.services.GetMap()
+		for k,v:=range allHabitats {
+			sh:=v.(*ServiceHabitat)
+			if sh.service.ServiceID().Topic()==message.Dest.Topic() {
+				cid = k.(uint16)
 				break
 			}
 		}
 	}
-	return sm.services[cid]
+	result,_:=sm.services.Get(cid)
+	return result.(*ServiceHabitat)
+}
+
+func (sm *ServiceManager) getServiceHabitatByID(cid uint16) *ServiceHabitat {
+	result,_:=sm.services.Get(cid)
+	return result.(*ServiceHabitat)
 }
 
 func (sm *ServiceManager) HandleUnreachable(habitat *Habitat, message *Message){
@@ -160,13 +164,15 @@ func (sm *ServiceManager) HandleUnreachable(habitat *Habitat, message *Message){
 func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 	if message.IsPublish() {
 		if message.Type==Message_Type_Service_Ping {
-			sm.services[MANAGEMENT_ID].inbox.Push(message,message.Priority)
+			msh:=sm.getServiceHabitatByID(MANAGEMENT_ID)
+			msh.inbox.Push(message,message.Priority)
 			return
 		}
 		rg:=sm.topics[message.Dest.Topic()]
 		if rg!=nil {
 			for _,sid:=range rg {
-				service:=sm.services[sid]
+				srv,_:=sm.services.Get(sid)
+				service:=srv.(*ServiceHabitat)
 				service.inbox.Push(message,message.Priority)
 			}
 		}
@@ -178,6 +184,11 @@ func (sm *ServiceManager) HandleMessage(habitat *Habitat, message *Message){
 
 func (sm *ServiceManager) Shutdown() {
 	sm.habitat.Shutdown()
+	services:=sm.services.GetMap()
+	for _,s:=range services {
+		sh:=s.(*ServiceHabitat)
+		sh.inbox.Shutdown()
+	}
 }
 
 func (sm *ServiceManager) WaitForShutdown(){
@@ -204,7 +215,11 @@ func(sm *ServiceManager) CreateAndSend(s Service,dest *ServiceID,ptype uint16,da
 
 func (sh *ServiceHabitat) processNextMessage() {
 	for ;sh.serviceManager.habitat.Running(); {
-		message := sh.inbox.Pop().(*Message)
+		msg := sh.inbox.Pop()
+		if msg==nil {
+			break;
+		}
+		message:=msg.(*Message)
 		if message.Unreachable {
 			msgHandler := sh.unreachableHandlers[message.Type]
 			if msgHandler == nil {

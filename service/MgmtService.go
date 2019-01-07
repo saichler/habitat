@@ -4,7 +4,7 @@ import . "github.com/saichler/habitat"
 
 const (
 	MANAGEMENT_SERVICE_TOPIC="Management Service Topic"
-	MANAGEMENT_ID = 10
+	MANAGEMENT_ID uint16 = 10
 )
 
 type MgmtService struct {

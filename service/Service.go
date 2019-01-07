@@ -23,9 +23,9 @@ type RepetitiveMessages struct {
 }
 
 type RepetitiveMessageEntry struct {
-	message *Message
-	interval int64
-	last int64
+	message   *Message
+	interval  int64
+	timestamp int64
 }
 
 type ServiceMessageHandler interface {
@@ -47,8 +47,22 @@ func (rm *RepetitiveMessages) RegisterRepetitive(msg *Message,interval int64) {
 	e:=&RepetitiveMessageEntry{}
 	e.message = msg
 	e.interval = interval
-	e.last = time.Now().Unix()
+	e.timestamp = time.Now().Unix()
 	rm.messages = append(rm.messages,e)
+}
+
+func (rm *RepetitiveMessages) UnRegisterRepetitive(cid uint16) {
+	rm.lock.L.Lock()
+	defer rm.lock.L.Unlock()
+	toRemove:=-1
+	for i,v:=range rm.messages {
+		if v.message.Source.ComponentID()==cid {
+			toRemove = i
+		}
+	}
+	tmp:=rm.messages[0:toRemove]
+	tmp=append(tmp,rm.messages[toRemove+1:]...)
+	rm.messages=tmp
 }
 
 func (rm *RepetitiveMessages) repetitiveMessageSending(srm *ServiceManager) {
@@ -56,9 +70,9 @@ func (rm *RepetitiveMessages) repetitiveMessageSending(srm *ServiceManager) {
 		rm.lock.L.Lock()
 		now:=time.Now().Unix()
 		for _,ent:=range rm.messages {
-			if now-ent.last>ent.interval {
+			if now-ent.timestamp >ent.interval {
 				srm.Send(ent.message)
-				ent.last = now
+				ent.timestamp = now
 			}
 		}
 		rm.lock.L.Unlock()
@@ -78,18 +92,4 @@ func (sh *ServiceHabitat) repetitiveServicePing(rm *RepetitiveMessages) {
 	dest:=NewServiceID(PUBLISH_HID,sh.service.ServiceID().ComponentID(),sh.service.ServiceID().Topic())
 	msg := sh.serviceManager.NewMessage(source, dest, source, Message_Type_Service_Ping, []byte(sh.service.Name()))
 	rm.RegisterRepetitive(msg,10)
-
-	/*
-	time.Sleep(time.Second)
-	lastSent:=int64(0)
-	for ;sh.serviceManager.habitat.Running(); {
-		if time.Now().Unix()-lastSent>5 {
-			source:=NewServiceID(sh.serviceManager.habitat.HID(),sh.service.ServiceID().ComponentID(),sh.service.ServiceID().Topic())
-			dest:=NewServiceID(PUBLISH_HID,sh.service.ServiceID().ComponentID(),sh.service.ServiceID().Topic())
-			msg := sh.serviceManager.NewMessage(source, dest, source, Message_Type_Service_Ping, []byte(sh.service.Name()))
-			sh.serviceManager.Send(msg)
-			lastSent=time.Now().Unix()
-		}
-		time.Sleep(time.Second)
-	}*/
 }
