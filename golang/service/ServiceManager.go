@@ -2,7 +2,7 @@ package service
 
 import (
 	"errors"
-	. "github.com/saichler/habitat"
+	. "github.com/saichler/habitat/golang/habitat"
 	. "github.com/saichler/utils/golang"
 	"plugin"
 	"strconv"

@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "github.com/saichler/habitat/service"
+	. "github.com/saichler/habitat/golang/service"
 	. "github.com/saichler/utils/golang"
 	"os"
 	"strings"

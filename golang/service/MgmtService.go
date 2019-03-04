@@ -1,6 +1,6 @@
 package service
 
-import . "github.com/saichler/habitat"
+import . "github.com/saichler/habitat/golang/habitat"
 
 const (
 	MANAGEMENT_SERVICE_TOPIC="Management Service Topic"

@@ -1,7 +1,7 @@
 package service
 
 import (
-	. "github.com/saichler/habitat"
+	. "github.com/saichler/habitat/golang/habitat"
 )
 
 type ServicePingHandler struct {
