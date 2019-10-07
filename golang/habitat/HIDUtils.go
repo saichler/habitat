@@ -7,7 +7,7 @@ import (
 
 
 
-func FromString(str string) *HabitatID {
+func HIDFromString(str string) *HabitatID {
 	nid := HabitatID{}
 	index := strings.Index(str,":")
 	mostString :=  str[0:index]
